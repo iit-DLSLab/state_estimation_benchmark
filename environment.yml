@@ -1,0 +1,24 @@
+name: state_est_bench
+channels:
+  - conda-forge
+dependencies:
+  # Toolchain & build
+  - python=3.11
+  - cmake>=3.22
+  - ninja
+  - pkg-config
+  - make
+  - cxx-compiler
+  - c-compiler
+
+  # Core deps
+  - eigen
+  - pinocchio
+
+  # Useful numeric + plotting
+  - numpy
+  - pandas
+  - matplotlib
+
+  # Optional nice-to-haves (debugging/logging)
+  - fmt
