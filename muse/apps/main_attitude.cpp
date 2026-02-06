@@ -51,39 +51,6 @@
     }
 
     // -----------------------------
-    // Utils: rotations (equivalenti a iit::commons::*)
-    // -----------------------------
-    // static inline Eigen::Matrix3d quatToRotMat(const Eigen::Quaterniond& q)
-    // {
-    //     return q.normalized().toRotationMatrix();
-    // }
-
-    // roll-pitch-yaw (X-Y-Z, roll about x, pitch about y, yaw about z)
-    // static inline Eigen::Vector3d quatToRPY(const Eigen::Quaterniond& q)
-    // {
-    // const Eigen::Matrix3d R = quatToRotMat(q);
-
-    // // standard aerospace RPY from rotation matrix:
-    // // roll  = atan2(R(2,1), R(2,2))
-    // // pitch = asin(-R(2,0))
-    // // yaw   = atan2(R(1,0), R(0,0))
-    // Eigen::Vector3d rpy;
-    // rpy(0) = std::atan2(R(2,1), R(2,2));
-    // rpy(1) = std::asin(std::clamp(-R(2,0), -1.0, 1.0));
-    // rpy(2) = std::atan2(R(1,0), R(0,0));
-    // return rpy;
-    // }
-
-    // omega = quatToOmega(quat, quat_dot)
-    // Using: qdot = 0.5 * q ⊗ [0,omega]  =>  omega = 2 * (q^{-1} ⊗ qdot).vec
-    // static inline Eigen::Vector3d quatToOmega(const Eigen::Quaterniond& q,
-    //                                         const Eigen::Quaterniond& qdot)
-    // {
-    // Eigen::Quaterniond wq = q.conjugate() * qdot; // q^{-1} ⊗ qdot
-    // return 2.0 * wq.vec();
-    // }
-
-    // -----------------------------
     // MAIN
     // -----------------------------
     int main(int argc, char** argv)

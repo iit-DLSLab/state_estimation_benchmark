@@ -1,7 +1,7 @@
 #ifndef KF_SENSOR_FUSION_HPP
 #define KF_SENSOR_FUSION_HPP
 
-#include "state_estimator/Observers/EKF.hpp"
+#include "Observers/EKF.hpp"
 #include <unsupported/Eigen/MatrixFunctions>
 
 namespace state_estimator
@@ -147,6 +147,6 @@ namespace state_estimator
     {
         // Implementation details depending on what you need to do when 'slippage' is true/false.
     }
-} // namespace state_estimator
+} // namespace muse_offline
 
 #endif // KF_SENSOR_FUSION_HPP

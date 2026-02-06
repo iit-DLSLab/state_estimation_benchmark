@@ -2,6 +2,7 @@
 #define LIB_HPP
 
 #include <Eigen/Dense>
+#include <iomanip>
 // #include <ros/ros.h>
 
 namespace state_estimator {
