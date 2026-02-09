@@ -170,34 +170,76 @@ int main(int argc, char** argv)
             pinocchio::forwardKinematics(model, data, q, v);
             pinocchio::updateFramePlacements(model, data);
 
+            // OLD
             // Foot positions (root frame)
-            Eigen::Vector3d p_foot[4];
-            for (int leg = 0; leg < 4; ++leg) {
-                p_foot[leg] = data.oMf[foot_ids[leg]].translation();
-            }
+            // Eigen::Vector3d p_foot[4];
+            // for (int leg = 0; leg < 4; ++leg) {
+            //     p_foot[leg] = data.oMf[foot_ids[leg]].translation();
+            // }
 
             // Jacobians and foot velocities
-            Eigen::Matrix3d Jleg[4];
+            // Eigen::Matrix3d Jleg[4];
+            // Eigen::Vector3d vfoot[4];
+
+            // for (int leg = 0; leg < 4; ++leg) {
+            //     pinocchio::computeFrameJacobian(
+            //         model, data, q, foot_ids[leg],
+            //         pinocchio::ReferenceFrame::WORLD, J6);
+
+            //     const Eigen::MatrixXd Jv_all = J6.topRows<3>(); // 3 x nv
+
+            //     // slice 3 cols -> 3x3
+            //     for (int r = 0; r < 3; ++r) {
+            //         for (int c = 0; c < 3; ++c) {
+            //             Jleg[leg](r,c) = Jv_all(r, leg_v_cols[leg][c]);
+            //         }
+            //     }
+
+            //     Eigen::Vector3d dq_leg;
+            //     dq_leg << s.dq[leg*3 + 0], s.dq[leg*3 + 1], s.dq[leg*3 + 2];
+            //     vfoot[leg] = Jleg[leg] * dq_leg;
+            // }
+            // OLD
+
+            // NEW: compute foot velocity as J*v (not just leg joints, but all)
+            // Jacobians and foot velocities
+            // Foot positions (world == base, but expressed in WORLD-aligned coords)
+            Eigen::Vector3d p_foot[4];
             Eigen::Vector3d vfoot[4];
+            Eigen::Matrix3d Jleg[4];
 
             for (int leg = 0; leg < 4; ++leg) {
+
+                const auto fid = foot_ids[leg];
+
+                // Position of the foot frame (translation)
+                // NOTE: in fixed-base model this is expressed in the model "world" frame
+                p_foot[leg] = data.oMf[fid].translation();
+
+                // Frame velocity expressed in LOCAL_WORLD_ALIGNED:
+                // - origin: at the frame
+                // - axes: aligned with WORLD
+                pinocchio::Motion v6 = pinocchio::getFrameVelocity(
+                    model, data, fid, pinocchio::LOCAL_WORLD_ALIGNED);
+
+                vfoot[leg] = v6.linear();
+
+                // --- Jacobian in the SAME reference frame (consistent with v6) ---
+                J6.setZero();
                 pinocchio::computeFrameJacobian(
-                    model, data, q, foot_ids[leg],
-                    pinocchio::ReferenceFrame::WORLD, J6);
+                    model, data, q, fid, pinocchio::LOCAL_WORLD_ALIGNED, J6);
 
-                const Eigen::MatrixXd Jv_all = J6.topRows<3>(); // 3 x nv
+                const Eigen::MatrixXd Jv_all = J6.topRows<3>(); // 3 x nv (linear part)
 
-                // slice 3 cols -> 3x3
+                // slice the 3 columns corresponding to that leg joints (3x3)
                 for (int r = 0; r < 3; ++r) {
                     for (int c = 0; c < 3; ++c) {
                         Jleg[leg](r,c) = Jv_all(r, leg_v_cols[leg][c]);
                     }
                 }
-
-                Eigen::Vector3d dq_leg;
-                dq_leg << s.dq[leg*3 + 0], s.dq[leg*3 + 1], s.dq[leg*3 + 2];
-                vfoot[leg] = Jleg[leg] * dq_leg;
             }
+            // NEW
+
 
             // Write row
             out << s.t;
