@@ -125,19 +125,19 @@ private:
 };
 
 // -----------------------------
-// IEKF ordered input (82 dims) + timestamp
+// IS (Invariant Smoother) ordered input (82 dims) + timestamp
 // -----------------------------
-struct IEKFInput {
+struct ISInput {
     double t_abs = 0.0;
     std::array<double, 82> z{}; // in the required order
 };
 
 // Build the 82-vector in the exact order shown in your screenshot.
-static IEKFInput buildIEKFInputFromRows(const std::vector<std::string>& row,
-                                       const std::unordered_map<std::string,int>& idx,
-                                       const FeetRow& feet)
+static ISInput buildISInputFromRows(const std::vector<std::string>& row,
+                                    const std::unordered_map<std::string,int>& idx,
+                                    const FeetRow& feet)
 {
-    IEKFInput out;
+    ISInput out;
 
     // time
     // (your sensor_data.csv uses "t")
@@ -155,7 +155,7 @@ static IEKFInput buildIEKFInputFromRows(const std::vector<std::string>& row,
     out.z[k++] = getColAsDouble(row, idx, "imu_ay");
     out.z[k++] = getColAsDouble(row, idx, "imu_az");
 
-    // 3) Joint positions (12) in the leg order expected by your IEKF.
+    // 3) Joint positions (12) in the leg order expected by your IS.
     // Your screenshot says legs order: RR, RL, FL, FR (rear right, rear left, front left, front right)
     // BUT your sensor_data.csv columns are: LF, RF, LH, RH (front-left, front-right, hind-left, hind-right).
     //
@@ -213,7 +213,7 @@ static IEKFInput buildIEKFInputFromRows(const std::vector<std::string>& row,
     copyJleg(1); // RF -> FR
 
     if (k != 82) {
-        throw std::runtime_error("Internal error: IEKF z has size " + std::to_string(k) + " (expected 82)");
+        throw std::runtime_error("Internal error: IS z has size " + std::to_string(k) + " (expected 82)");
     }
 
     return out;
@@ -232,7 +232,7 @@ int main(int argc, char** argv)
     const std::string sensor_csv = dataset_root + "/sensor_data.csv";
     const std::string feet_csv   = dataset_root + "/feet_kinematics.csv";
 
-    std::cout << "IEKF input reorder (in-memory)\n"
+    std::cout << "IS input reorder (in-memory)\n"
               << "  Sensor: " << sensor_csv << "\n"
               << "  Feet  : " << feet_csv << "\n";
 
@@ -274,7 +274,7 @@ int main(int argc, char** argv)
         }
     }
 
-    // Example loop: build IEKFInput and (for now) just print first few
+    // Example loop: build ISInput and (for now) just print first few
     std::size_t n = 0;
     while (std::getline(in, line)) {
         if (line.empty()) continue;
@@ -287,7 +287,7 @@ int main(int argc, char** argv)
         auto row = splitCSVLine(line);
 
         try {
-            IEKFInput u = buildIEKFInputFromRows(row, idx, fr);
+            ISInput u = buildISInputFromRows(row, idx, fr);
 
             if (n < 3) {
                 std::cout << "Sample " << n << " t_abs=" << u.t_abs << " z[0..5]="
@@ -295,9 +295,8 @@ int main(int argc, char** argv)
                           << u.z[3] << " " << u.z[4] << " " << u.z[5] << "\n";
             }
 
-            // TODO: qui chiami il tuo IEKF:
-            // iekf.step(u.t_abs, u.z);
-
+            // TODO: qui chiami il tuo IS:
+            // is.step(u.t_abs, u.z);
             n++;
         } catch (const std::exception& e) {
             std::cerr << "Skipping row " << n << " due to: " << e.what() << "\n";
