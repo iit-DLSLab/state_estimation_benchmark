@@ -40,4 +40,11 @@ target_include_directories(main_sensor_fusion PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/include
 )
 
+add_executable(main_muse apps/main_muse.cpp)
+target_link_libraries(main_muse PRIVATE Eigen3::Eigen)
+
+target_include_directories(main_muse PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/include
+)
+
 

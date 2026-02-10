@@ -214,8 +214,6 @@
 
         auto row = splitCSVLine(line);
         if ((int)row.size() < (int)header.size()) {
-        // allow short rows but must contain needed cols
-        // we'll just rely on indexing checks
         }
 
         try {
