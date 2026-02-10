@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 
 DATASET_ROOT = "data/anymalD_grandtour"
-GT_FILE      = f"{DATASET_ROOT}/groundtruth.csv"
+# GT_FILE      = f"{DATASET_ROOT}/groundtruth.csv"
+GT_FILE      = f"{DATASET_ROOT}/anymal_state.csv"
 FUSED_FILE   = f"{DATASET_ROOT}/muse/fused_state.csv"
 
 def interp_vec(t_src, y_src, t_dst):
@@ -44,10 +45,17 @@ def main():
     t_fu = t_fu_abs - t_fu_abs[0]
 
     # --- GT signals
-    p_gt = gt[["x","y","z"]].to_numpy(dtype=float)
+    # p_gt = gt[["x","y","z"]].to_numpy(dtype=float)
+    # v_gt = gt[["vx","vy","vz"]].to_numpy(dtype=float)
+
+    # # GT quat is (qx,qy,qz,qw) -> scipy expects (x,y,z,w)
+    # q_gt_xyzw = gt[["qx","qy","qz","qw"]].to_numpy(dtype=float)
+
+    # --- ANYmal state from internal state estimator
+    p_gt = gt[["px","py","pz"]].to_numpy(dtype=float)
     v_gt = gt[["vx","vy","vz"]].to_numpy(dtype=float)
 
-    # GT quat is (qx,qy,qz,qw) -> scipy expects (x,y,z,w)
+    # ANYmal quat is (qx,qy,qz,qw) -> scipy expects (x,y,z,w)
     q_gt_xyzw = gt[["qx","qy","qz","qw"]].to_numpy(dtype=float)
 
     # --- Fused signals
