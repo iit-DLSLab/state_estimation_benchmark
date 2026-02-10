@@ -47,7 +47,6 @@ public:
       const double w_lh = s.stance_lh ? 1.0 : 0.0;
       const double w_rh = s.stance_rh ? 1.0 : 0.0;
       const double sum  = w_lf + w_rf + w_lh + w_rh;
-      // std::cout << "sum:" << sum << std::endl;
 
       out.v_base_b = (w_lf*out.v_lf_b + w_rf*out.v_rf_b + w_lh*out.v_lh_b + w_rh*out.v_rh_b) / (sum + 1e-5);
 
@@ -55,7 +54,6 @@ public:
       // If q_wb_est is quaternion of body in world, then w_R_b = R(q).transpose() or R(q)? depends on your convention.
       const Eigen::Matrix3d w_R_b = iit::commons::quatToRotMat(q_wb_est).transpose();
       out.v_base_w = w_R_b * out.v_base_b;
-      // std::cout << "out.v_base_w: " << out.v_base_w.transpose() << std::endl;
 
       return out;
   }
@@ -66,13 +64,6 @@ public:
 
 inline Eigen::Matrix3d b_R_imu_anymalD() {
     Eigen::Matrix3d R;
-    // R << -1, 0, 0,
-    //      0, 1, 0,
-    //      0, 0, -1;
-    return R;                                       //(Eigen::AngleAxisd(-M_PI/2,  Eigen::Vector3d::UnitX()).toRotationMatrix() *
-                                                    // Eigen::AngleAxisd( 0.0,     Eigen::Vector3d::UnitY()).toRotationMatrix() *
-                                                    // Eigen::AngleAxisd( M_PI/2,  Eigen::Vector3d::UnitZ()).toRotationMatrix());
-
     /*
       frame_id: "base"
     child_frame_id: "imu_link"
