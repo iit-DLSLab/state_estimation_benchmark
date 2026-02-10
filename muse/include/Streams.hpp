@@ -41,8 +41,8 @@ public:
     s.stance_rf = (getD(row, idx, "contact_RF") > 0.5);
     s.stance_lh = (getD(row, idx, "contact_LH") > 0.5);
     s.stance_rh = (getD(row, idx, "contact_RH") > 0.5);
-    std::cout << "stance_lf: " << s.stance_lf << ", stance_rf: " << s.stance_rf
-              << ", stance_lh: " << s.stance_lh << ", stance_rh: " << s.stance_rh << std::endl;
+    // std::cout << "stance_lf: " << s.stance_lf << ", stance_rf: " << s.stance_rf
+    //           << ", stance_lh: " << s.stance_lh << ", stance_rh: " << s.stance_rh << std::endl;
     return true;
   }
 

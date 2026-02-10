@@ -124,9 +124,31 @@
     double kp = 10.0;
 
     Eigen::Matrix3d b_R_imu;
-    b_R_imu << -1, 0, 0,
-                0, 1, 0,
-                0, 0, -1;
+    // b_R_imu << -1, 0, 0,
+    //             0, 1, 0,
+    //             0, 0, -1;
+
+    /*
+      frame_id: "base"
+    child_frame_id: "imu_link"
+    transform: 
+      translation: 
+        x: -0.25565
+        y: 0.00255
+        z: 0.07672
+      rotation: 
+        x: 6.123233995736766e-17
+        y: 1.0
+        z: 6.123233995736766e-17
+        w: 3.749399456654644e-33
+    */
+
+    Eigen::Quaterniond b_quat_imu;
+    b_quat_imu.w() = 3.749399456654644e-33;
+    b_quat_imu.x() = 6.123233995736766e-17;
+    b_quat_imu.y() = 1.0;
+    b_quat_imu.z() = 6.123233995736766e-17;
+    b_R_imu = iit::commons::quatToRotMat(b_quat_imu.normalized()).transpose();
 
     // north_vector default in plugin:
     Eigen::Vector3d m_n(1.0/std::sqrt(3.0), 1.0/std::sqrt(3.0), 1.0/std::sqrt(3.0));
@@ -135,10 +157,35 @@
     Eigen::Vector3d f_n(0.0, 0.0, 9.81);
 
     // Covariances P0/Q/R (plugin expects 6x6). Here we set sane defaults.
-    // Se vuoi identico al plugin, puoi caricarli da YAML in futuro.
-    Eigen::Matrix<double,6,6> P0 = Eigen::Matrix<double,6,6>::Identity() * 1e-2;
-    Eigen::Matrix<double,6,6> Q  = Eigen::Matrix<double,6,6>::Identity() * 1e-4;
-    Eigen::Matrix<double,6,6> R  = Eigen::Matrix<double,6,6>::Identity() * 1e-2;
+    Eigen::Matrix<double,6,6> P0 = Eigen::Matrix<double,6,6>::Identity() * 1e-10;
+    Eigen::Matrix<double,6,6> Q  = Eigen::Matrix<double,6,6>::Identity() * 1e-10;
+    Eigen::Matrix<double,6,6> R  = Eigen::Matrix<double,6,6>::Identity() * 1e-5;
+
+    // Eigen::Matrix<double,6,6> P0;
+    // Eigen::Matrix<double,6,6> Q; 
+    // Eigen::Matrix<double,6,6> R;
+    // P0 <<   1.0e-6, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 1.0e-6, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 1.0e-6, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 1.0e-16, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 1.0e-16, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-16;
+
+    // Q <<    1.0e-6, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 1.0e-6, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 1.0e-6, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 1.0e-12, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 1.0e-12, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-12;
+
+    // R <<    1.0e-3, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 1.0e-3, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 1.0e-3, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 1.0e12, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 1.0e12, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e12;
+
+
 
     // -----------------------------
     // Plugin state init (identico)

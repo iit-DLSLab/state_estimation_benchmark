@@ -57,10 +57,35 @@ int main(int argc, char** argv) {
         }
         k++;
 
+        // rotation: 
+        // x: 0.9999999991989279
+        // y: 0.0
+        // z: 0.0
+        // w: 4.0026794885936924e-05
+
+        Eigen::Quaterniond base_quat_box;
+        base_quat_box.w() = 4.0026794885936924e-05;
+        base_quat_box.x() = 0.9999999991989279;
+        base_quat_box.y() = 0.0;
+        base_quat_box.z() = 0.0;
+        base_quat_box.normalize();
+        Eigen::Matrix3d base_R_box = iit::commons::quatToRotMat(base_quat_box).transpose();
+
+        // std::cout << "base_R_box:\n" << base_R_box << "\n";
+
+        Eigen::Vector3d v_base_b_box = base_R_box * res.v_base_b;
+        Eigen::Vector3d v_base_w_box = base_R_box * res.v_base_w;
+
+        // out << t_rel << "," << s.t_abs << ","
+        //     << v_base_b_box.x() << "," << v_base_b_box.y() << "," << v_base_b_box.z() << ","
+        //     << v_base_w_box.x() << "," << v_base_w_box.y() << "," << v_base_w_box.z() << "\n";
 
         out << t_rel << "," << s.t_abs << ","
             << res.v_base_b.x() << "," << res.v_base_b.y() << "," << res.v_base_b.z() << ","
-            << res.v_base_w.x() << "," << res.v_base_w.y() << "," << res.v_base_w.z() << "\n";
+            << res.v_base_w.x() << "," << res.v_base_w.y() << "," << res.v_base_w.z() << "\n";     // this is the correct one
+
+
+
     }
 
     std::cout << "Done.\n";
