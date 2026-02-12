@@ -20,7 +20,7 @@
 static const std::string DEFAULT_DATASET_ROOT = "../../data/anymalD_grandtour";
 static const std::string DEFAULT_URDF_PATH    = "../../models/anymalD/anymal.urdf"; 
 static const std::string DEFAULT_SENSOR_CSV   = DEFAULT_DATASET_ROOT + "/sensor_data.csv";
-static const std::string DEFAULT_OUT_CSV      = DEFAULT_DATASET_ROOT + "/feet_kinematics.csv";
+static const std::string DEFAULT_OUT_CSV      = DEFAULT_DATASET_ROOT + "/feet_kinematics_smoother.csv"; // need to check if we need another one for the smoother version
 
 static void write_header(std::ofstream& out)
 {
@@ -170,21 +170,21 @@ int main(int argc, char** argv)
             pinocchio::forwardKinematics(model, data, q, v);
             pinocchio::updateFramePlacements(model, data);
 
-            // OLD
-            // Foot positions (root frame)
+            // // // OLD
+            // // // Foot positions (root frame)
             // Eigen::Vector3d p_foot[4];
             // for (int leg = 0; leg < 4; ++leg) {
             //     p_foot[leg] = data.oMf[foot_ids[leg]].translation();
             // }
 
-            // Jacobians and foot velocities
+            // // Jacobians and foot velocities
             // Eigen::Matrix3d Jleg[4];
             // Eigen::Vector3d vfoot[4];
 
             // for (int leg = 0; leg < 4; ++leg) {
             //     pinocchio::computeFrameJacobian(
             //         model, data, q, foot_ids[leg],
-            //         pinocchio::ReferenceFrame::WORLD, J6);
+            //         pinocchio::ReferenceFrame::LOCAL, J6);
 
             //     const Eigen::MatrixXd Jv_all = J6.topRows<3>(); // 3 x nv
 
@@ -199,7 +199,7 @@ int main(int argc, char** argv)
             //     dq_leg << s.dq[leg*3 + 0], s.dq[leg*3 + 1], s.dq[leg*3 + 2];
             //     vfoot[leg] = Jleg[leg] * dq_leg;
             // }
-            // OLD
+            // // OLD
 
             // NEW: compute foot velocity as J*v (not just leg joints, but all)
             // Jacobians and foot velocities
@@ -239,6 +239,66 @@ int main(int argc, char** argv)
                 }
             }
             // NEW
+
+            // NEW FOR SMOOTHER
+            // Pre-req: hai model, data, q, v (opzionale), e frame ids dei piedi foot_ids[4]
+            // e sai l'id del frame "base" (o "base_link") nel modello:
+            const pinocchio::FrameIndex base_fid = model.getFrameId("base"); // o "base_link"
+
+            // 1) Kinematics
+            pinocchio::forwardKinematics(model, data, q, v);               // v solo se ce l'hai
+            pinocchio::computeJointJacobians(model, data, q);
+            pinocchio::updateFramePlacements(model, data);
+
+            // 2) Pose base in WORLD
+            const pinocchio::SE3 oMb = data.oMf[base_fid];
+            const Eigen::Matrix3d w_R_b = oMb.rotation();
+            const Eigen::Vector3d w_p_b = oMb.translation();
+
+            Eigen::Vector3d p_foot_b[4];
+            Eigen::Matrix3d Jleg_b[4];
+
+            Eigen::Matrix<double,6,Eigen::Dynamic> J6(6, model.nv);
+
+            for (int leg = 0; leg < 4; ++leg)
+            {
+            const auto fid = foot_ids[leg];
+
+            // --- foot position in WORLD
+            const pinocchio::SE3 oMf = data.oMf[fid];
+            const Eigen::Vector3d w_p_f = oMf.translation();
+
+            // --- convert position to BASE: p_b = R_bw * (p_w - p_w_b)
+            p_foot_b[leg] = w_R_b.transpose() * (w_p_f - w_p_b);
+
+            // --- frame Jacobian expressed in WORLD axes (at frame origin)
+            J6.setZero();
+            pinocchio::getFrameJacobian(model, data, fid,
+                                        pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED,
+                                        J6);
+
+            // linear part in WORLD
+            const Eigen::MatrixXd Jv_w = J6.topRows<3>(); // 3 x nv
+
+            // slice only the 3 joint columns of that leg -> 3x3
+            Eigen::Matrix3d Jv_leg_w;
+            for (int r = 0; r < 3; ++r)
+                for (int c = 0; c < 3; ++c)
+                Jv_leg_w(r,c) = Jv_w(r, leg_v_cols[leg][c]);
+
+            // express in BASE: v_b = R_bw * v_w  (R_bw = w_R_b^T)
+            Jleg_b[leg] = w_R_b.transpose() * Jv_leg_w;
+
+            // --- foot vel in BASE
+            Eigen::Vector3d dq_leg;
+            dq_leg << s.dq[leg*3 + 0], s.dq[leg*3 + 1], s.dq[leg*3 + 2];
+
+            Eigen::Vector3d vfoot_b = Jleg_b[leg] * dq_leg;
+
+            // ora p_foot_b[leg], Jleg_b[leg], vfoot_b sono coerenti "in base"
+            }
+
+            // NEW FOR SMOOTHER
 
 
             // Write row
