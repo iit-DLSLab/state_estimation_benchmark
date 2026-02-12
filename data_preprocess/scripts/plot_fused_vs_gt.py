@@ -8,7 +8,7 @@ DATASET_ROOT = "data/anymalD_grandtour"
 # GT_FILE      = f"{DATASET_ROOT}/groundtruth.csv"
 GT_FILE      = f"{DATASET_ROOT}/anymal_state.csv"
 FUSED_FILE   = f"{DATASET_ROOT}/muse/fused_state.csv"
-SMOOTHER_FILE = f"{DATASET_ROOT}/invariant_smoother/result.csv"
+SMOOTHER_FILE = f"{DATASET_ROOT}/invariant_smoother/fused_state.csv"
 
 def interp_vec(t_src, y_src, t_dst):
     """Linear interpolation column-wise."""
