@@ -112,7 +112,7 @@ public:
     Eigen::Vector3d IMU2BD;
 
 
-    double dt = 0.001;
+    double dt = 0.0025;
 
   EstimatorCovariances estimator_covariances_;
 

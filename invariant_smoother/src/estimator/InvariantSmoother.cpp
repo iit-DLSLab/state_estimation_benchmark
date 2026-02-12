@@ -1518,7 +1518,7 @@ void InvariantSmoother::Initialize(double _dt,
 
 
   dt = _dt;
-  gravity << 0, 0, -9.81;
+  gravity << 0, 0, 9.81;
 
 
   if (textfile_flag) {
