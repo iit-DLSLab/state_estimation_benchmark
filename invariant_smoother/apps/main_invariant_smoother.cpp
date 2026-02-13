@@ -238,7 +238,7 @@ int main(int argc, char** argv)
     if (argc > 1) dataset_root = argv[1];
 
     const std::string sensor_csv = dataset_root + "/sensor_data.csv";
-    const std::string feet_csv   = dataset_root + "/feet_kinematics_smoother.csv";
+    const std::string feet_csv   = dataset_root + "/feet_kinematics.csv";
 
     const std::string out_dir    = dataset_root + "/invariant_smoother";
     const std::string out_csv    = out_dir + "/fused_state.csv";

@@ -20,7 +20,7 @@
 static const std::string DEFAULT_DATASET_ROOT = "../../data/anymalD_grandtour";
 static const std::string DEFAULT_URDF_PATH    = "../../models/anymalD/anymal.urdf"; 
 static const std::string DEFAULT_SENSOR_CSV   = DEFAULT_DATASET_ROOT + "/sensor_data.csv";
-static const std::string DEFAULT_OUT_CSV      = DEFAULT_DATASET_ROOT + "/feet_kinematics_smoother.csv"; // need to check if we need another one for the smoother version
+static const std::string DEFAULT_OUT_CSV      = DEFAULT_DATASET_ROOT + "/feet_kinematics.csv"; // need to check if we need another one for the smoother version
 
 static void write_header(std::ofstream& out)
 {
