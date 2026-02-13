@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/ynistico-iit.local/dls_ws_home/state_estimation_benchmark/common/build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
