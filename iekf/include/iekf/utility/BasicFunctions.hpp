@@ -48,7 +48,7 @@ const double TOLERANCE = 1e-10;
     {
         Eigen::Matrix<typename Derived::Scalar, 3, 1> omega;
         typename Derived::Scalar tr = R.trace();
-        typename Derived::Scalar acosinput = (tr - 1.0)/2.0;
+        // typename Derived::Scalar acosinput = (tr - 1.0)/2.0;
 
         // note switch to base 1
 
@@ -182,7 +182,7 @@ static Eigen::Matrix<double, 3, 3> Inv_Left_Jacobian_SO3(const Eigen::Vector3d &
 
 
 
-    static Eigen::Matrix<double, Eigen::Dynamic, 1> Logm_seK_Vec(const Eigen::MatrixXd &X, const int k)
+inline Eigen::Matrix<double, Eigen::Dynamic, 1> Logm_seK_Vec(const Eigen::MatrixXd &X, const int k)
 {
 //        Eigen::Matrix<double, 3, 3> R;
 //        R = X.block(0,0,3,3);
@@ -213,7 +213,7 @@ static Eigen::Matrix<double, 3, 3> Inv_Left_Jacobian_SO3(const Eigen::Vector3d &
   return Xi_seK;
 }
 
-static Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> Expm_seK_Vec(const Eigen::VectorXd &Xi, const int k)
+inline Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> Expm_seK_Vec(const Eigen::VectorXd &Xi, const int k)
 {
   Eigen::Matrix<double, 3, 1> phi;
   phi = Xi.block(0,0, 3,1);
@@ -264,7 +264,7 @@ static Eigen::Matrix<typename Derived::Scalar, 3, 3> Inv_Right_Jacobian_SO3(cons
 }
 
 
-static Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> Inv_Left_Jacobian_SEk(const Eigen::VectorXd &Xi, const int k)
+inline Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> Inv_Left_Jacobian_SEk(const Eigen::VectorXd &Xi, const int k)
 {
   //Right_Jacobia_SEk(Xi) = Left_Jacobian_SEk(-Xi)
 
@@ -291,7 +291,7 @@ static Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> Inv_Left_Jacobian_S
 	double norm = phi.norm();
 	double sin_norm = sin(norm);
 	double cos_norm = cos(norm);
-	double norm4 = pow(norm,4);
+	// double norm4 = pow(norm,4);
 	Eigen::Matrix<double, 3, 3> inv_jacobian_L_phi;
 	inv_jacobian_L_phi = Inv_Left_Jacobian_SO3(phi);
 
@@ -323,7 +323,7 @@ static Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> Inv_Left_Jacobian_S
 
 
 
-static Eigen::Matrix<double, 3, 3> Quaternion_to_Rotation_Matrix(const Eigen::Vector4d &q) {
+inline Eigen::Matrix<double, 3, 3> Quaternion_to_Rotation_Matrix(const Eigen::Vector4d &q) {
   // q(wxyz) -> R
   Eigen::Matrix<double, 3, 3> R;
   R(0) = q(0) * q(0) + q(1) * q(1) - q(2) * q(2) - q(3) * q(3);

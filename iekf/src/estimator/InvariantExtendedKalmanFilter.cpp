@@ -226,8 +226,6 @@ void InvariantExtendedKalmanFilter::Propagate_Correct()
     }
     imu_measurement_prev = imu_measurement;
 
-    std::cout << "Propagate_Correct: A" << std::endl;
-
     // set contacts: usa frame corrente (frame_count può essere 0 o 1), scegli idx sicuro
     int idx = std::min(frame_count, 1);
     std::vector<std::pair<int,bool>> contacts;
@@ -235,8 +233,6 @@ void InvariantExtendedKalmanFilter::Propagate_Correct()
         contacts.emplace_back(i, HARD_CONTACT_t[idx](i));
     }
     filter.setContacts(contacts);
-
-    std::cout << "Propagate_Correct: B" << std::endl;
 
     // build kinematic measurements using il buffer idx (quello attuale)
     inekf::vectorKinematics measured_kinematics;
@@ -375,26 +371,16 @@ void InvariantExtendedKalmanFilter::Onestep(Eigen::Matrix<double, num_z, 1> Sens
 {
     clock_t start = clock();
 
-    std::cout << "A" << std::endl;
-
     new_measurement(Sensor_i, Contact_i, forkin_set);
-    std::cout << "B" << std::endl;
     Propagate_Correct();
-    std::cout << "C" << std::endl;
 
     send_states(state_);
-    std::cout << "D" << std::endl;
     SAVE_onestep_Z1(time_count);
-    std::cout << "E" << std::endl;
 
     clock_t finish = clock();
-    std::cout << "F" << std::endl;
     double duration = (double)(finish - start) / CLOCKS_PER_SEC;
-    std::cout << "G" << std::endl;
     SAVE_BUFFER[96][time_count] = 1;
-    std::cout << "H" << std::endl;
     SAVE_BUFFER[97][time_count] = duration;
-    std::cout << "I" << std::endl;
 
     frame_count++;
     if(frame_count > 1) {

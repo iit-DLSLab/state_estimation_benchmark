@@ -365,7 +365,6 @@ int main(int argc, char** argv)
             // remap and call the IEKF
             fillIEKFInputs(srow, sidx, fr, Sensor_, Contact_, forkin_set_);
             estimator_IEKF.estimator_common_struct_.dt = dt;
-            std::cout << "BEFORE ONESTEP" << std::endl;
             estimator_IEKF.Onestep(Sensor_, Contact_, forkin_set_, state_);
 
             state_history.push_back(state_);

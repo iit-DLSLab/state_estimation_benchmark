@@ -50,21 +50,21 @@ InEKF::InEKF() : g_((Eigen::VectorXd(3) << 0,0,-9.80665).finished()),
                  lidar_position_(Eigen::Vector3d::Zero()){}
 
 // Constructor with noise params
-InEKF::InEKF(NoiseParams params) : g_((Eigen::VectorXd(3) << 0,0,-9.80665).finished()),
-                                   noise_params_(params),
+InEKF::InEKF(NoiseParams params) : noise_params_(params),                                   
+                                   g_((Eigen::VectorXd(3) << 0,0,-9.80665).finished()),
                                    lidar_rotation_(Eigen::Matrix3d::Identity()),
                                    lidar_position_(Eigen::Vector3d::Zero()) {}
 
 // Constructor with initial state
-InEKF::InEKF(RobotState state) : g_((Eigen::VectorXd(3) << 0,0,-9.80665).finished()),
-                                 state_(state),
+InEKF::InEKF(RobotState state) : state_(state), 
+                                 g_((Eigen::VectorXd(3) << 0,0,-9.80665).finished()),                                 
                                  lidar_rotation_(Eigen::Matrix3d::Identity()),
                                  lidar_position_(Eigen::Vector3d::Zero()) {}
 
 // Constructor with initial state and noise params
-InEKF::InEKF(RobotState state, NoiseParams params) : g_((Eigen::VectorXd(3) << 0,0,-9.80665).finished()),
-                                                     state_(state),
+InEKF::InEKF(RobotState state, NoiseParams params) : state_(state),
                                                      noise_params_(params),
+                                                     g_((Eigen::VectorXd(3) << 0,0,-9.80665).finished()),
                                                      lidar_rotation_(Eigen::Matrix3d::Identity()),
                                                      lidar_position_(Eigen::Vector3d::Zero()) {}
 
@@ -250,8 +250,6 @@ void InEKF::Correct(const Observation& obs) {
     Eigen::MatrixXd P_new = IKH * P * IKH.transpose()+ K*obs.N*K.transpose(); // Joseph update form
 
     state_.setP(P_new);
-    std::cout << "position: " << state_.getPosition().transpose() << std::endl; 
-
 }  
 
 // Create Observation from vector of landmark measurements
