@@ -14,3 +14,7 @@ build.ninja
 
 # Data exports
 *.csv
+
+# VS Code
+.vscode/
+*.code-workspace
