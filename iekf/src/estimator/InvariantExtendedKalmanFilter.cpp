@@ -8,16 +8,9 @@
 // Modified by Junny on 2023.
 
 #include <iostream>
-#include <fstream>
-#include <string>
-#include <cstdlib>
-#include <eigen3/Eigen/Dense>
-#include <boost/algorithm/string.hpp>
+#include <ctime>
 #include <vector>
 #include "iekf/estimator/InvariantExtendedKalmanFilter.hpp"
-
-#define DT_MIN 1e-6
-#define DT_MAX 1
 
 using std::cout;
 using std::endl;
@@ -29,7 +22,6 @@ InvariantExtendedKalmanFilter::~InvariantExtendedKalmanFilter() = default;
 
 std::vector<Eigen::Vector3d> InvariantExtendedKalmanFilter::Variable_Contact_Cov(int time){
   std::vector<Eigen::Vector3d> contact_cov_array;
-  contact_cov_array.clear();
 
   for (int k = 0; k < estimator_common_struct_.leg_no; k++) {
     Eigen::Vector3d contact_cov = cov_amplifier * estimator_common_struct_.estimator_covariances_.cov_contact_diagonal;

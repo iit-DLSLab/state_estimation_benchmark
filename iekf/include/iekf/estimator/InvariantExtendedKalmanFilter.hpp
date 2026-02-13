@@ -10,26 +10,15 @@
 
 #pragma once
 
-// Libraries
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
-
-#include <iostream>
-#include <fstream>
-
-
-
-// Parameters
-// #include "Models/estimator_parameters.hpp"
+#include <string>
+#include <vector>
 #include "iekf/estimator/RobotStateIEKF.hpp"
-
-// CustomBasics
 
 #include "iekf/InEKF/InEKF.h"
 #include "iekf/utility/BasicFunctions.hpp"
-// #include "Models/LeggedRobotKinematics.h"
 #include "iekf/utility/EstimatorCommonStruct.hpp"
-// #include "Models/RobotParameter.hpp"
 
 
 class InvariantExtendedKalmanFilter {
@@ -43,7 +32,6 @@ public:
     InvariantExtendedKalmanFilter();
     ~InvariantExtendedKalmanFilter();
 
-    //functions
     void Initialize(double _dt, EstimatorCovariances estimator_covariances, Eigen::Matrix<double, 16, 1> initial_condition);
 
     void new_measurement(Eigen::Matrix<double, num_z, 1> Sensor_i, Eigen::Matrix<bool, 4, 1> Contact_i, const MEAS_FORWARD_KINEMATICS &forkin_set);
@@ -57,13 +45,11 @@ public:
     void SAVE_onestep_Z1(int cnt);
 
     void Onestep(Eigen::Matrix<double, num_z, 1> Sensor_i, Eigen::Matrix<bool, 4, 1> Contact_i, const MEAS_FORWARD_KINEMATICS &forkin_set, ROBOT_STATES &state_);
-
     void DoSaveAll(std::string cov_info);
 
 
     int NUM_OF_TRASH_DATA = 1;
 
-    //Necessary classes & variables
     EstimatorCommonStruct estimator_common_struct_;
 
     bool sliding_window_flag=false;
@@ -72,11 +58,7 @@ public:
 
     double dt = estimator_common_struct_.dt;
     Eigen::Matrix<double,3,1> gravity;
-
-
-
-
-    //Call_FILE PARAMETER
+    // Call_FILE PARAMETER
     int gt_sd = 0;
     const static int MAX_FILE_COUNT =140000;
     double SensorData       [MAX_FILE_COUNT][30];
@@ -84,9 +66,7 @@ public:
     int max_time = MAX_FILE_COUNT;
     int row_index = 0; // row index
     int column_index = 0; // column index
-
-
-    //Inner variable
+    // Inner variable
     inekf::InEKF filter;
 
     Eigen::Matrix<double,6,1> imu_measurement;
@@ -100,9 +80,7 @@ public:
     Eigen::Matrix<double,3,1> Bias_Acc_s[2];
     Eigen::Matrix<double,3,1> Bias_Gyro_s[2];
     Eigen::Matrix<double, 6,1> Bias_s[2];
-
-
-    // True Values and measurement Buffer
+    // True values and measurement buffer
     Eigen::Matrix<bool, 4,1> HARD_CONTACT_t[2];
     Eigen::Matrix<bool, 4,1> CONTACT_t[2];
     Eigen::Matrix<bool, 4,1> SLIP_t[2];
@@ -114,10 +92,7 @@ public:
 
     Eigen::Matrix3d lidar_rotation_;
     Eigen::Vector3d lidar_position_;
-
-
-
-    //SAVE PARAMETER
+    // SAVE PARAMETER
     std::string estimator_info;
     std::string file_info;
     std::string initial_info;
@@ -153,11 +128,7 @@ public:
 
     int idx_final_state_covariance = idx_ESTIMATED_rpy+3;
     int idx_end = idx_final_state_covariance+12;
-
-
-
-
-    //Parameters
+    // Parameters
     bool textfile_flag = false;
 
     bool slip_rejection_mode = false;
@@ -165,14 +136,8 @@ public:
 
     bool variable_contact_cov_mode = false;
     double cov_amplifier = 2;
-
-
-    //not used
+    // Not used
     int Max_Iteration = 100;
     double Optimization_Epsilon = 1e-3;
-
-
 private:
-
-
 };

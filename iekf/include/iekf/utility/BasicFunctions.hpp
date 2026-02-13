@@ -27,28 +27,28 @@ const double TOLERANCE = 1e-10;
     }
 
 
-        template <typename Derived>
+  template <typename Derived>
     static Eigen::Matrix<typename Derived::Scalar, 3, 3> Hat_so3(const Eigen::MatrixBase<Derived> &vec)
     {
-        Eigen::Matrix<typename Derived::Scalar, 3, 3> hat_matrix;
-        hat_matrix << typename Derived::Scalar(0), -vec(2), vec(1),
-                vec(2), typename Derived::Scalar(0), -vec(0),
-                -vec(1), vec(0), typename Derived::Scalar(0);
-        return hat_matrix;
+      Eigen::Matrix<typename Derived::Scalar, 3, 3> hat_matrix;
+      hat_matrix << typename Derived::Scalar(0), -vec(2), vec(1),
+                    vec(2), typename Derived::Scalar(0), -vec(0),
+                    -vec(1), vec(0), typename Derived::Scalar(0);
+      return hat_matrix;
     }
-    template <typename Derived>
+  template <typename Derived>
     static Eigen::Matrix<typename Derived::Scalar, 3, 1> Vee_so3(const Eigen::MatrixBase<Derived> &so3)
     {
-        Eigen::Matrix<typename Derived::Scalar, 3, 1> vee_vec;
-        vee_vec << so3(2,1), so3(0,2), so3(1,0);
-        return vee_vec;
+      Eigen::Matrix<typename Derived::Scalar, 3, 1> vee_vec;
+      vee_vec << so3(2,1), so3(0,2), so3(1,0);
+      return vee_vec;
     }
-    template <typename Derived>
+  template <typename Derived>
     static Eigen::Matrix<typename Derived::Scalar, 3, 1> Logm_Vec(const Eigen::MatrixBase<Derived> &R)
     {
-        Eigen::Matrix<typename Derived::Scalar, 3, 1> omega;
-        typename Derived::Scalar tr = R.trace();
-        // typename Derived::Scalar acosinput = (tr - 1.0)/2.0;
+      Eigen::Matrix<typename Derived::Scalar, 3, 1> omega;
+      typename Derived::Scalar tr = R.trace();
+      // typename Derived::Scalar acosinput = (tr - 1.0)/2.0;
 
         // note switch to base 1
 
