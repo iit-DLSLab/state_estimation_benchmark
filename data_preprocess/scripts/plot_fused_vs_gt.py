@@ -9,6 +9,7 @@ DATASET_ROOT = "data/anymalD_grandtour"
 GT_FILE      = f"{DATASET_ROOT}/anymal_state.csv"
 FUSED_FILE   = f"{DATASET_ROOT}/muse/fused_state.csv"
 SMOOTHER_FILE = f"{DATASET_ROOT}/invariant_smoother/fused_state.csv"
+IEKF_FILE     = f"{DATASET_ROOT}/iekf/fused_state.csv"
 
 def interp_vec(t_src, y_src, t_dst):
     """Linear interpolation column-wise."""
@@ -38,14 +39,17 @@ def main():
     gt = pd.read_csv(GT_FILE)
     fused = pd.read_csv(FUSED_FILE)
     smoother = pd.read_csv(SMOOTHER_FILE)
+    iekf = pd.read_csv(IEKF_FILE)
     # --- time vectors
     t_gt_abs = gt["t"].to_numpy(dtype=float)
     t_fu_abs = fused["t_abs"].to_numpy(dtype=float)
     t_sm_abs = smoother["t_abs"].to_numpy(dtype=float)
-
+    t_ik_abs = iekf["t_abs"].to_numpy(dtype=float)
+    
     t_gt = t_gt_abs - t_gt_abs[0]
     t_fu = t_fu_abs - t_fu_abs[0]
     t_sm = t_sm_abs - t_sm_abs[0]
+    t_ik = t_ik_abs - t_ik_abs[0]
 
     # --- GT signals
     # p_gt = gt[["x","y","z"]].to_numpy(dtype=float)
@@ -72,6 +76,11 @@ def main():
     v_sm = smoother[["vx","vy","vz"]].to_numpy(dtype=float) 
     q_sm_xyzw = smoother[["qx","qy","qz","qw"]].to_numpy(dtype=float)
 
+    # --- IEKF signals
+    p_ik = iekf[["px","py","pz"]].to_numpy(dtype=float)
+    v_ik = iekf[["vx","vy","vz"]].to_numpy(dtype=float)
+    q_ik_xyzw = iekf[["qx","qy","qz","qw"]].to_numpy(dtype=float)
+
     # --- interpolate GT to fused timeline (pos/vel)
     p_gt_i = interp_vec(t_gt, p_gt, t_fu)
     v_gt_i = interp_vec(t_gt, v_gt, t_fu)
@@ -84,20 +93,23 @@ def main():
     q_fu_xyzw = align_quat_sign(q_gt_i, q_fu_xyzw)
     q_gt_i    = align_quat_sign(q_fu_xyzw, q_gt_i)
     q_sm_xyzw = align_quat_sign(q_gt_i, q_sm_xyzw)
-
+    q_ik_xyzw = align_quat_sign(q_gt_i, q_ik_xyzw)
     # --- Euler angles
     r_gt = R.from_quat(q_gt_i)
     r_fu = R.from_quat(q_fu_xyzw)
     r_sm = R.from_quat(q_sm_xyzw)
+    r_ik = R.from_quat(q_ik_xyzw)
 
     rpy_gt = r_gt.as_euler("xyz", degrees=True)
     rpy_fu = r_fu.as_euler("xyz", degrees=True)
     rpy_sm = r_sm.as_euler("xyz", degrees=True)
+    rpy_ik = r_ik.as_euler("xyz", degrees=True)
 
     # unwrap yaw (often the problematic one); if you want also roll/pitch, uncomment
     rpy_gt[:,2] = unwrap_deg(rpy_gt[:,2])
     rpy_fu[:,2] = unwrap_deg(rpy_fu[:,2])
     rpy_sm[:,2] = unwrap_deg(rpy_sm[:,2])
+    rpy_ik[:,2] = unwrap_deg(rpy_ik[:,2])
     # rpy_gt[:,0] = unwrap_deg(rpy_gt[:,0]); rpy_fu[:,0] = unwrap_deg(rpy_fu[:,0])
     # rpy_gt[:,1] = unwrap_deg(rpy_gt[:,1]); rpy_fu[:,1] = unwrap_deg(rpy_fu[:,1])
 
@@ -116,6 +128,7 @@ def main():
         ax1[i].plot(t_fu, p_fu[:,i], label="Fused", linewidth=1.5)
         ax1[i].plot(t_fu, p_gt_i[:,i], "--", label="GT", linewidth=1.0)
         ax1[i].plot(t_fu, p_sm[:,i], "-.", label="Smoothed", linewidth=1.0)
+        ax1[i].plot(t_fu, p_ik[:,i], ":", label="IEKF", linewidth=1.0)
         ax1[i].set_ylabel(f"p_{labels[i]} [m]")
         ax1[i].grid(True)
         ax1[i].legend()
@@ -131,6 +144,7 @@ def main():
         ax2[i].plot(t_fu, v_fu[:,i], label="Fused", linewidth=1.5)
         ax2[i].plot(t_fu, v_gt_i[:,i], "--", label="GT", linewidth=1.0)
         ax2[i].plot(t_fu, v_sm[:,i], "-.", label="Smoothed", linewidth=1.0)
+        ax2[i].plot(t_fu, v_ik[:,i], ":", label="IEKF", linewidth=1.0)
         ax2[i].set_ylabel(f"v_{labels[i]} [m/s]")
         ax2[i].grid(True)
         ax2[i].legend()
@@ -149,6 +163,7 @@ def main():
         rpy_sm[:,i] = unwrap_deg(rpy_sm[:,i])  # ensure Smoothed is also unwrapped for plotting
         ax3[i].plot(t_fu, rpy_gt[:,i], "--", label="GT", linewidth=1.0)
         ax3[i].plot(t_fu, rpy_sm[:,i], "-.", label="Smoothed", linewidth=1.0)
+        ax3[i].plot(t_fu, rpy_ik[:,i], ":", label="IEKF", linewidth=1.0)
         ax3[i].set_ylabel(f"{rpy_names[i]} [deg]")
         ax3[i].grid(True)
         ax3[i].legend()
@@ -164,6 +179,7 @@ def main():
     for i, lab in enumerate(qlabs):
         ax4[i].plot(t_fu, q_fu_xyzw[:,i] if lab!="qw" else q_fu_xyzw[:,3], label="Fused", linewidth=1.2)
         ax4[i].plot(t_fu, q_gt_i[:,i]   if lab!="qw" else q_gt_i[:,3], "--", label="GT", linewidth=1.0)
+        ax4[i].plot(t_fu, q_ik_xyzw[:,i]   if lab!="qw" else q_ik_xyzw[:,3], ":", label="IEKF", linewidth=1.0)
         ax4[i].plot(t_fu, q_sm_xyzw[:,i] if lab!="qw" else q_sm_xyzw[:,3], "-.", label="Smoothed", linewidth=1.0)
         ax4[i].set_ylabel(lab)
         ax4[i].grid(True)
@@ -179,6 +195,7 @@ def main():
     plt.plot(p_gt[:,0], p_gt[:,1], "--", label="GT", linewidth=1.2)
     plt.plot(p_fu[:,0], p_fu[:,1], label="Fused", linewidth=1.5)
     plt.plot(p_sm[:,0], p_sm[:,1], "-.", label="Smoothed", linewidth=1.0)
+    plt.plot(p_ik[:,0], p_ik[:,1], ":", label="IEKF", linewidth=1.0)
     plt.xlabel("x [m]")
     plt.ylabel("y [m]")
     plt.title("Trajectory XY")
