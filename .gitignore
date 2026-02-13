@@ -1,0 +1,16 @@
+# Build directories
+build/
+**/build/
+
+# Common CMake/Ninja artifacts
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+Makefile
+build.ninja
+.ninja_deps
+.ninja_log
+
+# Data exports
+*.csv
