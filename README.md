@@ -54,38 +54,71 @@ Build and run:
 ```
 ./precompute_feet_kinematics
 ```
-Output: `data/anymalD_grandtour_feet_kinematics.csv`
+Output: `data/anymalD_grandtour/feet_kinematics.csv`
 
-## Step 3 - MUSE
-This is a direct offline port of the MUSE [`attitude_estimation_plugin`](https://github.com/iit-DLSLab/muse/blob/main/muse_ws/src/state_estimator/src/plugins/attitude_estimation_plugin.cpp).
-It:
-- reads `sensor_data.csv`
-- uses the `AttitudeBiasXKF` logic
-- uses timestamps from the CSV
-- writes the estimated orientation to CSV
-
-Build:
+## Step 3 - Run MUSE (attitude + leg odometry + fused state)
+Build and run MUSE:
 ```
 cd muse
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
+./main_muse
 ```
-Run:
+or you can run also separately:
 ```
-./main_attitude
+./main_attitude_estimation
+./main_leg_odometry
+./main_muse
 ```
-Output: `data/anymalD_grandtour/attitude_estimate_muse.csv` in the format:
+Default input dataset root: `data/anymalD_grandtour`
+
+Generated outputs:
+- `data/anymalD_grandtour/muse/attitude_estimate_muse.csv`
+- `data/anymalD_grandtour/muse/leg_odometry.csv`
+- `data/anymalD_grandtour/muse/fused_state.csv`
+
+## Step 4 - Run IEKF
+Build and run IEKF:
 ```
-t_rel, t_abs,
-qw, qx, qy, qz,
-bgx, bgy, bgz,
-roll_deg, pitch_deg, yaw_deg,
-omega_filt_x, omega_filt_y, omega_filt_z
+cd iekf
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+
+# optional: pass a custom dataset root as first argument
+./main_iekf
 ```
-## Step 4 - Plotting & Validation
-### Attitude estimated vs. Ground Truth
-Run
+Generated output:
+- `data/anymalD_grandtour/iekf/fused_state.csv`
+
+## Step 5 - Run Invariant Smoother
+Build and run the invariant smoother:
 ```
+cd invariant_smoother
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+
+# optional: pass a custom dataset root as first argument
+./main_invariant_smoother
+```
+Generated output:
+- `data/anymalD_grandtour/invariant_smoother/fused_state.csv`
+
+## Step 6 - Plot and compare results
+From the repository root, run:
+```
+# MUSE attitude vs GT
 python3 data_preprocess/scripts/plot_muse_attitude_vs_gt.py
+
+# MUSE leg odometry velocity vs GT velocity
+python3 data_preprocess/scripts/plot_legodom_vs_gtvel.py
+
+# Compare fused trajectories: MUSE vs IEKF vs Invariant Smoother vs GT
+python3 data_preprocess/scripts/plot_fused_vs_gt.py
 ```
+
+Note:
+- `plot_muse_attitude_vs_gt.py` and `plot_legodom_vs_gtvel.py` read `groundtruth.csv`.
+- `plot_fused_vs_gt.py` currently reads `anymal_state.csv` as GT.
