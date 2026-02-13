@@ -6,6 +6,7 @@
 // All rights reserved.
 //
 // Modified by Junny on 2023.
+// Readapted for this project by Ylenia Nistico in 2026.
 
 #include <array>
 #include <cmath>
@@ -71,12 +72,12 @@ static int getColAsBool01(const std::vector<std::string>& row,
 }
 
 // -----------------------------
-// FeetStream: legge feet_kinematics.csv (lockstep)
+// FeetStream: reading feet_kinematics.csv (lockstep)
 // -----------------------------
 struct FeetRow {
     double t_abs = 0.0;
-    std::array<double, 12> p{};   // LF,RF,LH,RH (3 ciascuno)
-    std::array<double, 36> J{};   // LF,RF,LH,RH (9 ciascuno, row-major 3x3)
+    std::array<double, 12> p{};   // LF,RF,LH,RH (3 each)
+    std::array<double, 36> J{};   // LF,RF,LH,RH (9 each, row-major 3x3)
 };
 
 class FeetStream {
@@ -133,11 +134,11 @@ private:
 };
 
 // -----------------------------
-// Remap: da (sensor row + feet row) -> strutture IS
-// Il loro main usa:
+// Remap: from (sensor row + feet row) -> structure IS
+// Original main uses:
 //  Sensor_(0:2)=gyro, Sensor_(3:5)=acc, Sensor_(6:17)=jnt_pos, Sensor_(18:29)=jnt_vel
 //  Contact_ (4x1 bool)
-//  forkin_set_.forkin_position (size 4) e forkin_set_.forkin_jacobian (size 4)
+//  forkin_set_.forkin_position (size 4) and forkin_set_.forkin_jacobian (size 4)
 // -----------------------------
 static void fillInvariantSmootherInputs(
     const std::vector<std::string>& srow,
@@ -161,8 +162,8 @@ static void fillInvariantSmootherInputs(
         getColAsDouble(srow, sidx, "imu_ay"),
         -getColAsDouble(srow, sidx, "imu_az");
 
-    // --- JOINTS: nel tuo sensor_data.csv hai LF RF LH RH.
-    // Tu vuoi alimentare lo smoother nel suo ordine (come da screenshot): RR, RL, FL, FR.
+    // --- JOINTS: in our sensor_data.csv we have LF RF LH RH.
+    // To align to the smoother order: RR, RL, FL, FR (as per convention of the smoother in EstimatorCommonStruct).
     // RR=RH, RL=LH, FL=LF, FR=RF
     const char* JO_POS[12] = {
         "joint_pos_RH_HAA","joint_pos_RH_HFE","joint_pos_RH_KFE", // RR
@@ -177,20 +178,6 @@ static void fillInvariantSmootherInputs(
         "joint_vel_LF_HAA","joint_vel_LF_HFE","joint_vel_LF_KFE", // FL
     };
 
-    // JOINTS order expected by IS: RH, LH, RF, LF
-    // const char* JO_POS[12] = {
-    // "joint_pos_RH_HAA","joint_pos_RH_HFE","joint_pos_RH_KFE", // RH
-    // "joint_pos_LH_HAA","joint_pos_LH_HFE","joint_pos_LH_KFE", // LH
-    // "joint_pos_RF_HAA","joint_pos_RF_HFE","joint_pos_RF_KFE", // RF
-    // "joint_pos_LF_HAA","joint_pos_LF_HFE","joint_pos_LF_KFE"  // LF
-    // };
-    // const char* JO_VEL[12] = {
-    // "joint_vel_RH_HAA","joint_vel_RH_HFE","joint_vel_RH_KFE", // RH
-    // "joint_vel_LH_HAA","joint_vel_LH_HFE","joint_vel_LH_KFE", // LH
-    // "joint_vel_RF_HAA","joint_vel_RF_HFE","joint_vel_RF_KFE", // RF
-    // "joint_vel_LF_HAA","joint_vel_LF_HFE","joint_vel_LF_KFE"  // LF
-    // };
-
     // contacts: RH, LH, RF, LF
     Contact_(0) = (getColAsBool01(srow, sidx, "contact_RH") != 0);
     Contact_(1) = (getColAsBool01(srow, sidx, "contact_LH") != 0);
@@ -201,19 +188,9 @@ static void fillInvariantSmootherInputs(
     for (int i = 0; i < 12; ++i) Sensor_(6  + i) = getColAsDouble(srow, sidx, JO_POS[i]);
     for (int i = 0; i < 12; ++i) Sensor_(18 + i) = getColAsDouble(srow, sidx, JO_VEL[i]);
 
-    // --- CONTACTS: RR,RL,FL,FR => RH,LH,LF,RF
-    // const bool c_rr = getColAsBool01(srow, sidx, "contact_RH") != 0;
-    // const bool c_rl = getColAsBool01(srow, sidx, "contact_LH") != 0;
-    // const bool c_fl = getColAsBool01(srow, sidx, "contact_LF") != 0;
-    // const bool c_fr = getColAsBool01(srow, sidx, "contact_RF") != 0;
-
-    // Contact_(0) = c_rr;
-    // Contact_(1) = c_rl;
-    // Contact_(2) = c_fl;
-    // Contact_(3) = c_fr;
 
     // --- FORKIN POS + JAC
-    // feet.p è LF,RF,LH,RH. Rimappa in RR,RL,FL,FR => RH,LH,LF,RF
+    // feet.p is LF,RF,LH,RH. Remap in RR,RL,FL,FR => RH,LH,LF,RF
     auto pickP = [&](int legLF_RF_LH_RH) -> Eigen::Vector3d {
         return Eigen::Vector3d(
             feet.p[legLF_RF_LH_RH*3 + 0],
@@ -232,21 +209,7 @@ static void fillInvariantSmootherInputs(
         return J;
     };
 
-    // Attenzione: i nomi "forkin_position/jacobian" sono quelli del loro struct.
-    // Io assumo che siano std::vector con size=4.
-    // forkin_set_.forkin_position.resize(4);
-    // forkin_set_.forkin_jacobian.resize(4);
-
-    // forkin_set_.forkin_position[0] = pickP(3); // RR <- RH
-    // forkin_set_.forkin_position[1] = pickP(2); // RL <- LH
-    // forkin_set_.forkin_position[2] = pickP(0); // FL <- LF
-    // forkin_set_.forkin_position[3] = pickP(1); // FR <- RF
-
-    // forkin_set_.forkin_jacobian[0] = pickJ(3); // RR <- RH
-    // forkin_set_.forkin_jacobian[1] = pickJ(2); // RL <- LH
-    // forkin_set_.forkin_jacobian[2] = pickJ(0); // FL <- LF
-    // forkin_set_.forkin_jacobian[3] = pickJ(1); // FR <- RF
-
+    // Remapping legs: RR,RL,FL,FR => RH,LH,LF,RF 
     forkin_set_.forkin_position.resize(4);
     forkin_set_.forkin_jacobian.resize(4);
 
@@ -255,10 +218,10 @@ static void fillInvariantSmootherInputs(
     forkin_set_.forkin_position[2] = pickP(0); // FL <- LF
     forkin_set_.forkin_position[3] = pickP(1); // FR <- RF
 
-    forkin_set_.forkin_jacobian[0] = pickJ(0); // RH
-    forkin_set_.forkin_jacobian[1] = pickJ(1); // LH
-    forkin_set_.forkin_jacobian[2] = pickJ(2); // RF
-    forkin_set_.forkin_jacobian[3] = pickJ(3); // LF
+    forkin_set_.forkin_jacobian[0] = pickJ(3); // RR <- RH
+    forkin_set_.forkin_jacobian[1] = pickJ(2); // RL <- LH
+    forkin_set_.forkin_jacobian[2] = pickJ(0); // FL <- LF
+    forkin_set_.forkin_jacobian[3] = pickJ(1); // FR <- RF
 
 }
 
@@ -302,7 +265,7 @@ int main(int argc, char** argv)
     auto sheader = splitCSVLine(line);
     auto sidx = headerIndex(sheader);
 
-    // --- Parametri IS (copiati dal loro main)
+    // --- IS Parameters 
     double dt_init = 0.0025; // 400Hz
     int starting_point = 1;
     bool SR = false;
@@ -335,11 +298,11 @@ int main(int argc, char** argv)
     cov.cov_prior_bias_acc_diagonal    << std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp);
 
     Eigen::Matrix<double,16,1> x0;
-    x0 << 0.0,0.0,0.0,   // px py pz
-          1.0,0.0,0.0,0.0, // q(w,x,y,z)
-          0.0,0.0,0.0,   // vx, vy, vz
-          0.0,0.0,0.0,   // bgx, bgy, bgz
-          0.0,0.0,0.0;   // bax, bay, baz
+    x0 << 0.0,0.0,0.0,      // px py pz
+          1.0,0.0,0.0,0.0,  // q(w,x,y,z)
+          0.0,0.0,0.0,      // vx, vy, vz
+          0.0,0.0,0.0,      // bgx, bgy, bgz
+          0.0,0.0,0.0;      // bax, bay, baz
 
     estimator_IS.estimator_common_struct_.leg_no = 4;
     estimator_IS.Optimization_Epsilon = convergence_cond;
@@ -365,7 +328,6 @@ int main(int argc, char** argv)
     ROBOT_STATES state_;
     MEAS_FORWARD_KINEMATICS forkin_set_;
 
-    // NEW
     std::vector<ROBOT_STATES> state_history;
     std::vector<double> t_abs_history;
 
@@ -396,18 +358,12 @@ int main(int argc, char** argv)
         double dt = t_current - t_prev;
         t_prev = t_current;
 
-        // filtro anti glitch
-        // if (dt <= 0.0 || dt > 0.1) {
-        //     std::cout << "Skipping bad dt: " << dt << std::endl;
-        //     continue;
-        // }
-
         try {
-            // timestamp dal sensor csv
+            // timestamp from sensor_data csv
             const double t_abs = getColAsDouble(srow, sidx, "t");
             t_abs_history.push_back(t_abs);
 
-            // rimappa e chiama smoother
+            // remap and call the smoother
             fillInvariantSmootherInputs(srow, sidx, fr, Sensor_, Contact_, forkin_set_);
             estimator_IS.estimator_common_struct_.dt = dt;
             estimator_IS.Onestep(Sensor_, Contact_, forkin_set_, state_);
