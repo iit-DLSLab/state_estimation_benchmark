@@ -273,12 +273,12 @@ int main(int argc, char** argv)
     bool VCC = false;
     double cov_amplifier = 1;
 
-    int max_backpp_no = 1;
-    double backpp_rate = 0.5;
-    int max_it_no = 1;
-    double convergence_cond = 1e-3;
+    // int max_backpp_no = 1;
+    // double backpp_rate = 0.5;
+    // int max_it_no = 1;
+    // double convergence_cond = 1e-3;
 
-    double gyro_exp = -6, acc_exp = -4, slip_exp = -1.3, contact_exp = -4, encoder_exp = -8;
+    double gyro_exp = -8, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;
     double bg_exp = -10, ba_exp = -10;
     double pri_ori_exp = -8, pri_vel_exp = -8, pri_pos_exp = -8;
     double pri_bg_exp = -10, pri_ba_exp = -10;
@@ -291,11 +291,11 @@ int main(int argc, char** argv)
     cov.cov_enc_diagonal  << std::pow(10, encoder_exp), std::pow(10, encoder_exp), std::pow(10, encoder_exp);
     cov.cov_bias_gyro_diagonal << std::pow(10, bg_exp), std::pow(10, bg_exp), std::pow(10, bg_exp);
     cov.cov_bias_acc_diagonal  << std::pow(10, ba_exp), std::pow(10, ba_exp), std::pow(10, ba_exp);
-    cov.cov_prior_orientation_diagonal << std::pow(10, pri_ori_exp), std::pow(10, pri_ori_exp), std::pow(10, pri_ori_exp);
-    cov.cov_prior_velocity_diagonal    << std::pow(10, pri_vel_exp), std::pow(10, pri_vel_exp), std::pow(10, pri_vel_exp);
-    cov.cov_prior_position_diagonal    << std::pow(10, pri_pos_exp), std::pow(10, pri_pos_exp), std::pow(10, pri_pos_exp);
-    cov.cov_prior_bias_gyro_diagonal   << std::pow(10, pri_bg_exp), std::pow(10, pri_bg_exp), std::pow(10, pri_bg_exp);
-    cov.cov_prior_bias_acc_diagonal    << std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp);
+    // cov.cov_prior_orientation_diagonal << std::pow(10, pri_ori_exp), std::pow(10, pri_ori_exp), std::pow(10, pri_ori_exp);
+    // cov.cov_prior_velocity_diagonal    << std::pow(10, pri_vel_exp), std::pow(10, pri_vel_exp), std::pow(10, pri_vel_exp);
+    // cov.cov_prior_position_diagonal    << std::pow(10, pri_pos_exp), std::pow(10, pri_pos_exp), std::pow(10, pri_pos_exp);
+    // cov.cov_prior_bias_gyro_diagonal   << std::pow(10, pri_bg_exp), std::pow(10, pri_bg_exp), std::pow(10, pri_bg_exp);
+    // cov.cov_prior_bias_acc_diagonal    << std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp);
 
     Eigen::Matrix<double,16,1> x0;
     x0 << 0.0,0.0,0.0,      // px py pz
