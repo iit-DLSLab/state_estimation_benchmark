@@ -12,5 +12,5 @@
 #include <eigen3/Eigen/Dense>
 
 
-const int WINDOW_SIZE = 1;
+const int WINDOW_SIZE = 15;
 const double ALPHA = 1.0;

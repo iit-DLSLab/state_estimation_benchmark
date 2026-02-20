@@ -9,12 +9,15 @@
 // Readapted for this project by Ylenia Nistico in 2026.
 
 #include <array>
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -278,7 +281,8 @@ int main(int argc, char** argv)
     int max_it_no = 1;
     double convergence_cond = 1e-3;
 
-    double gyro_exp = -6, acc_exp = -4, slip_exp = -1.3, contact_exp = -4, encoder_exp = -8;
+    double gyro_exp = -4, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;     // smooth
+    // double gyro_exp = -8, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;
     double bg_exp = -10, ba_exp = -10;
     double pri_ori_exp = -8, pri_vel_exp = -8, pri_pos_exp = -8;
     double pri_bg_exp = -10, pri_ba_exp = -10;
@@ -336,6 +340,9 @@ int main(int argc, char** argv)
 
     std::size_t n = 0;
     std::size_t skipped = 0;
+    double total_onestep_us = 0.0;
+    double min_onestep_us = std::numeric_limits<double>::infinity();
+    double max_onestep_us = 0.0;
 
     while (std::getline(in, line)) {
         if (line.empty()) continue;
@@ -366,7 +373,15 @@ int main(int argc, char** argv)
             // remap and call the smoother
             fillInvariantSmootherInputs(srow, sidx, fr, Sensor_, Contact_, forkin_set_);
             estimator_IS.estimator_common_struct_.dt = dt;
+
+            auto start = std::chrono::high_resolution_clock::now();
             estimator_IS.Onestep(Sensor_, Contact_, forkin_set_, state_);
+            auto end = std::chrono::high_resolution_clock::now();
+            const double elapsed_us =
+                std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(end - start).count();
+            total_onestep_us += elapsed_us;
+            min_onestep_us = std::min(min_onestep_us, elapsed_us);
+            max_onestep_us = std::max(max_onestep_us, elapsed_us);
 
             state_history.push_back(state_);
             n++;
@@ -380,7 +395,17 @@ int main(int argc, char** argv)
     std::filesystem::create_directories(out_dir);
     SaveFile::writeCSV(out_csv, state_history, t_abs_history);
 
-    std::cout << "Done. Processed " << n << " samples (skipped " << skipped << ").\n"
-              << "Saved: " << out_csv << "\n";
+    std::cout << "Done. Processed " << n << " samples (skipped " << skipped << ").\n";
+    if (n > 0) {
+        const double avg_onestep_us = total_onestep_us / static_cast<double>(n);
+        std::cout << std::fixed << std::setprecision(3)
+                  << "Onestep timing [us]: avg=" << avg_onestep_us
+                  << ", min=" << min_onestep_us
+                  << ", max=" << max_onestep_us << "\n"
+                  << "Onestep timing [ms]: avg=" << (avg_onestep_us / 1000.0)
+                  << ", min=" << (min_onestep_us / 1000.0)
+                  << ", max=" << (max_onestep_us / 1000.0) << "\n";
+    }
+    std::cout << "Saved: " << out_csv << "\n";
     return 0;
 }
