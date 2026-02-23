@@ -23,3 +23,7 @@ dependencies:
   # Optional nice-to-haves (debugging/logging)
   - fmt
   - yaml-cpp
+
+  - pip
+  - pip:
+      - evo
