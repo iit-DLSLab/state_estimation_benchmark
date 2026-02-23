@@ -281,8 +281,8 @@ int main(int argc, char** argv)
     int max_it_no = 1;
     double convergence_cond = 1e-3;
 
-    double gyro_exp = -4, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;     // smooth
-    // double gyro_exp = -8, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;
+    // double gyro_exp = -4, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;     // smooth
+    double gyro_exp = -8, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;
     double bg_exp = -10, ba_exp = -10;
     double pri_ori_exp = -8, pri_vel_exp = -8, pri_pos_exp = -8;
     double pri_bg_exp = -10, pri_ba_exp = -10;
