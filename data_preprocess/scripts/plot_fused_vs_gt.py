@@ -125,9 +125,9 @@ def main():
     labels = ["x","y","z"]
     fig1, ax1 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
     for i in range(3):
-        ax1[i].plot(t_fu, p_fu[:,i], label="Fused", linewidth=1.5)
         ax1[i].plot(t_fu, p_gt_i[:,i], "--", label="GT", linewidth=1.0)
-        ax1[i].plot(t_fu, p_sm[:,i], "-.", label="Smoothed", linewidth=1.0)
+        ax1[i].plot(t_fu, p_fu[:,i], label="MUSE", linewidth=1.5)
+        ax1[i].plot(t_fu, p_sm[:,i], "-.", label="IS", linewidth=1.0)
         ax1[i].plot(t_fu, p_ik[:,i], ":", label="IEKF", linewidth=1.0)
         ax1[i].set_ylabel(f"p_{labels[i]} [m]")
         ax1[i].grid(True)
@@ -141,9 +141,9 @@ def main():
     # =======================
     fig2, ax2 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
     for i in range(3):
-        ax2[i].plot(t_fu, v_fu[:,i], label="Fused", linewidth=1.5)
         ax2[i].plot(t_fu, v_gt_i[:,i], "--", label="GT", linewidth=1.0)
-        ax2[i].plot(t_fu, v_sm[:,i], "-.", label="Smoothed", linewidth=1.0)
+        ax2[i].plot(t_fu, v_fu[:,i], label="MUSE", linewidth=1.5)
+        ax2[i].plot(t_fu, v_sm[:,i], "-.", label="IS", linewidth=1.0)
         ax2[i].plot(t_fu, v_ik[:,i], ":", label="IEKF", linewidth=1.0)
         ax2[i].set_ylabel(f"v_{labels[i]} [m/s]")
         ax2[i].grid(True)
@@ -158,11 +158,11 @@ def main():
     fig3, ax3 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
     rpy_names = ["roll","pitch","yaw"]
     for i in range(3):
-        ax3[i].plot(t_fu, rpy_fu[:,i], label="Fused", linewidth=1.5)
+        ax3[i].plot(t_fu, rpy_gt[:,i], "--", label="GT", linewidth=1.0)
+        ax3[i].plot(t_fu, rpy_fu[:,i], label="MUSE", linewidth=1.5)
         rpy_gt[:,i] = unwrap_deg(rpy_gt[:,i])  # ensure GT is also unwrapped for plotting
         rpy_sm[:,i] = unwrap_deg(rpy_sm[:,i])  # ensure Smoothed is also unwrapped for plotting
-        ax3[i].plot(t_fu, rpy_gt[:,i], "--", label="GT", linewidth=1.0)
-        ax3[i].plot(t_fu, rpy_sm[:,i], "-.", label="Smoothed", linewidth=1.0)
+        ax3[i].plot(t_fu, rpy_sm[:,i], "-.", label="IS", linewidth=1.0)
         ax3[i].plot(t_fu, rpy_ik[:,i], ":", label="IEKF", linewidth=1.0)
         ax3[i].set_ylabel(f"{rpy_names[i]} [deg]")
         ax3[i].grid(True)
@@ -177,10 +177,10 @@ def main():
     fig4, ax4 = plt.subplots(4, 1, figsize=(11, 9), sharex=True)
     qlabs = ["qx","qy","qz","qw"]
     for i, lab in enumerate(qlabs):
-        ax4[i].plot(t_fu, q_fu_xyzw[:,i] if lab!="qw" else q_fu_xyzw[:,3], label="Fused", linewidth=1.2)
         ax4[i].plot(t_fu, q_gt_i[:,i]   if lab!="qw" else q_gt_i[:,3], "--", label="GT", linewidth=1.0)
+        ax4[i].plot(t_fu, q_fu_xyzw[:,i] if lab!="qw" else q_fu_xyzw[:,3], label="MUSE", linewidth=1.2)
         ax4[i].plot(t_fu, q_ik_xyzw[:,i]   if lab!="qw" else q_ik_xyzw[:,3], ":", label="IEKF", linewidth=1.0)
-        ax4[i].plot(t_fu, q_sm_xyzw[:,i] if lab!="qw" else q_sm_xyzw[:,3], "-.", label="Smoothed", linewidth=1.0)
+        ax4[i].plot(t_fu, q_sm_xyzw[:,i] if lab!="qw" else q_sm_xyzw[:,3], "-.", label="IS", linewidth=1.0)
         ax4[i].set_ylabel(lab)
         ax4[i].grid(True)
         ax4[i].legend()
@@ -193,8 +193,8 @@ def main():
     # =======================
     plt.figure(figsize=(8,8))
     plt.plot(p_gt[:,0], p_gt[:,1], "--", label="GT", linewidth=1.2)
-    plt.plot(p_fu[:,0], p_fu[:,1], label="Fused", linewidth=1.5)
-    plt.plot(p_sm[:,0], p_sm[:,1], "-.", label="Smoothed", linewidth=1.0)
+    plt.plot(p_fu[:,0], p_fu[:,1], label="MUSE", linewidth=1.5)
+    plt.plot(p_sm[:,0], p_sm[:,1], "-.", label="IS", linewidth=1.0)
     plt.plot(p_ik[:,0], p_ik[:,1], ":", label="IEKF", linewidth=1.0)
     plt.xlabel("x [m]")
     plt.ylabel("y [m]")
