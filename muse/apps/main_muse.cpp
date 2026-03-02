@@ -226,8 +226,8 @@ int main(int argc, char** argv)
     Eigen::Vector3d f_n(0.0, 0.0, 9.81);
 
     Eigen::Matrix<double,6,6> P0 = Eigen::Matrix<double,6,6>::Identity() * 1e-12;
-    Eigen::Matrix<double,6,6> Q = Eigen::Matrix<double,6,6>::Identity() * 1e-12;
-    Eigen::Matrix<double,6,6> Ratt = Eigen::Matrix<double,6,6>::Identity() * 1e-7;
+    Eigen::Matrix<double,6,6> Q = Eigen::Matrix<double,6,6>::Identity() * 1e-15;
+    Eigen::Matrix<double,6,6> Ratt = Eigen::Matrix<double,6,6>::Identity() * 1e-6;
 
     // P0 << 1e-12, 0.0, 0.0, 0.0, 0.0, 0.0,
     //       0.0, 1e-12, 0.0, 0.0, 0.0, 0.0,
@@ -243,12 +243,12 @@ int main(int argc, char** argv)
     //      0.0, 0.0, 0.0, 0.0, 1e-12, 0.0,
     //      0.0, 0.0, 0.0, 0.0, 0.0, 1e-12;
 
-    // Ratt << 1e-5, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 1e-5, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 1e-5, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 1e-5, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 1e-5, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 0.0, 1e-5;
+    // Ratt << 1e-1, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 1e6, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 1e6, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 1e2, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 1e2, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 0.0, 1e2;
 
 
 
@@ -266,9 +266,9 @@ int main(int argc, char** argv)
     Eigen::Matrix<double,6,1> x0; x0.setZero();
 
     // Tune these (or read from YAML).
-    Eigen::Matrix<double,6,6> Psf = Eigen::Matrix<double,6,6>::Identity() * 1e-10;
-    Eigen::Matrix<double,6,6> Qsf = Eigen::Matrix<double,6,6>::Identity() * 1e-10;
-    Eigen::Matrix<double,3,3> Rsf = Eigen::Matrix<double,3,3>::Identity() * 5e-12;
+    Eigen::Matrix<double,6,6> Psf = Eigen::Matrix<double,6,6>::Identity() * 1e-12;
+    Eigen::Matrix<double,6,6> Qsf = Eigen::Matrix<double,6,6>::Identity() * 1e-12;
+    Eigen::Matrix<double,3,3> Rsf = Eigen::Matrix<double,3,3>::Identity() * 5e-16;
 
     // Psf << 1e-10, 0.0, 0.0, 0.0, 0.0, 0.0,
     //        0.0, 1e-10, 0.0, 0.0, 0.0, 0.0,
