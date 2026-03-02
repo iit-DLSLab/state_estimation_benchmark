@@ -76,37 +76,36 @@ int main(int argc, char** argv) {
     CsvReader att(att_csv);
     CsvReader leg(leg_csv);
 
-    // base_R_imu per ANYmalD (quello che stavi usando)
+    // base_R_imu per ANYmalD
     Eigen::Matrix3d base_R_imu;
     // base_R_imu << -1, 0, 0,
     //                0, 1, 0,
     //                0, 0,-1;
     Eigen::Quaterniond b_quat_imu;
-    b_quat_imu.w() = 3.749399456654644e-33;
-    b_quat_imu.x() = 6.123233995736766e-17;
+    b_quat_imu.w() = 0.0;
+    b_quat_imu.x() = 0.0;
     b_quat_imu.y() = 1.0;
-    b_quat_imu.z() = 6.123233995736766e-17;
+    b_quat_imu.z() = 0.0;
     base_R_imu = iit::commons::quatToRotMat(b_quat_imu.normalized()).transpose();
     std::cout << "base_R_imu:\n" << base_R_imu << "\n";
 
-    // Inizializzazione KF come plugin
+    // Initialization KF
     // x: -0.25565
     // y: 0.00255
     // z: 0.07672
     const double t0 = 0.0;
     Eigen::Matrix<double,6,1> x0; x0.setZero();
-    x0(0) = -0.25565; // posizione iniziale (x)
-    x0(1) = 0.00255;  // posizione iniziale (y)
-    x0(2) = 0.07672;  // posizione iniziale (z)
-    x0(3) = 0.0;      // velocità iniziale (vx)
-    x0(4) = 0.0;      // velocità iniziale (vy)
-    x0(5) = 0.0;      // velocità iniziale (vz)
+    x0(0) = -0.25565; // initial position (x)
+    x0(1) = 0.00255;  // initial position (y)
+    x0(2) = 0.07672;  // initial position (z)
+    x0(3) = 0.0;      // initial velocity (vx)
+    x0(4) = 0.0;      // initial velocity (vy)
+    x0(5) = 0.0;      // initial velocity (vz)
 
     Eigen::Matrix<double,6,6> P; P.setIdentity(); P *= 1e-10;
     Eigen::Matrix<double,6,6> Q; Q.setIdentity(); Q *= 1e-10;
     Eigen::Matrix<double,3,3> R; R.setIdentity(); R *= 5e-13;
 
-    // Se vuoi replicare i tuoi parametri ROS, mettili qui (hard-coded o letti da yaml).
     state_estimator::KFSensorFusion kf(t0, x0, P, Q, R, false, false);
 
     try {
@@ -128,12 +127,12 @@ int main(int argc, char** argv) {
         if (!att.next(ra)) break;
         if (!leg.next(rl)) break;
 
-        // time: usiamo t_abs (timestamp) dai csv
+        // time: we use t_abs (timestamp) from csv
         const double t_abs = stod_safe(rs.v[sensor.idx("t")]);
         if (first) { t_abs0 = t_abs; first = false; }
         const double t_rel = t_abs - t_abs0;
 
-        // accel IMU dal sensor_data.csv
+        // accel IMU from sensor_data.csv
         // NB: nomi come nel tuo file: imu_ax, imu_ay, imu_az
         Eigen::Vector3d acc;
         acc.x() = stod_safe(rs.v[sensor.idx("imu_ax")]);
@@ -148,9 +147,7 @@ int main(int argc, char** argv) {
         q_wb.z() = stod_safe(ra.v[att.idx("qz")]);
         q_wb.normalize();
 
-        // plugin faceva: w_R_b = quatToRotMat(quat_est).transpose()
-        // qui: R(q_wb) in Eigen è w_R_b se q è "world<-body". Se nel tuo MUSE è l’opposto, inverti.
-        // Dato che in attitude hai già sistemato le convenzioni, manteniamo:
+        // w_R_b = quatToRotMat(quat_est).transpose()
         const Eigen::Matrix3d w_R_b = iit::commons::quatToRotMat(q_wb).transpose();
 
         // accel input u = w_R_b * (base_R_imu*acc) + gravity
