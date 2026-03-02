@@ -20,6 +20,9 @@
 // ---- Sensor fusion (your offline KF)
 #include "Models/SensorFusion.hpp"   // state_estimator::KFSensorFusion
 
+#include <chrono>
+#include <limits>
+
 // -----------------------------
 // Utils: CSV
 // -----------------------------
@@ -206,25 +209,48 @@ int main(int argc, char** argv)
     out_fs << "t_rel,t_abs,px,py,pz,vx,vy,vz,qw,qx,qy,qz\n";
 
     // -----------------------------
-    // YOUR ATTITUDE PARAMETERS / INIT (verbatim)
+    // ATTITUDE PARAMETERS / INIT (verbatim)
     // -----------------------------
     double ki = 0.02;
     double kp = 10.0;
 
     Eigen::Matrix3d b_R_imu;
     Eigen::Quaterniond b_quat_imu;
-    b_quat_imu.w() = 3.749399456654644e-33;
-    b_quat_imu.x() = 6.123233995736766e-17;
+    b_quat_imu.w() = 0.0;
+    b_quat_imu.x() = 0.0;
     b_quat_imu.y() = 1.0;
-    b_quat_imu.z() = 6.123233995736766e-17;
+    b_quat_imu.z() = 0.0;
     b_R_imu = iit::commons::quatToRotMat(b_quat_imu.normalized()).transpose();
 
     Eigen::Vector3d m_n(1.0/std::sqrt(3.0), 1.0/std::sqrt(3.0), 1.0/std::sqrt(3.0));
     Eigen::Vector3d f_n(0.0, 0.0, 9.81);
 
-    Eigen::Matrix<double,6,6> P0 = Eigen::Matrix<double,6,6>::Identity() * 1e-10;
-    Eigen::Matrix<double,6,6> Q  = Eigen::Matrix<double,6,6>::Identity() * 1e-10;
-    Eigen::Matrix<double,6,6> Ratt  = Eigen::Matrix<double,6,6>::Identity() * 1e-5;
+    Eigen::Matrix<double,6,6> P0 = Eigen::Matrix<double,6,6>::Identity() * 1e-12;
+    Eigen::Matrix<double,6,6> Q = Eigen::Matrix<double,6,6>::Identity() * 1e-12;
+    Eigen::Matrix<double,6,6> Ratt = Eigen::Matrix<double,6,6>::Identity() * 1e-7;
+
+    // P0 << 1e-12, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //       0.0, 1e-12, 0.0, 0.0, 0.0, 0.0,
+    //       0.0, 0.0, 1e-12, 0.0, 0.0, 0.0,
+    //       0.0, 0.0, 0.0, 1e-12, 0.0, 0.0,
+    //       0.0, 0.0, 0.0, 0.0, 1e-12, 0.0,
+    //       0.0, 0.0, 0.0, 0.0, 0.0, 1e-12;
+
+    // Q << 1e-12, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //      0.0, 1e-12, 0.0, 0.0, 0.0, 0.0,
+    //      0.0, 0.0, 1e-12, 0.0, 0.0, 0.0,
+    //      0.0, 0.0, 0.0, 1e-12, 0.0, 0.0,
+    //      0.0, 0.0, 0.0, 0.0, 1e-12, 0.0,
+    //      0.0, 0.0, 0.0, 0.0, 0.0, 1e-12;
+
+    // Ratt << 1e-5, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 1e-5, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 1e-5, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 1e-5, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 1e-5, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 0.0, 1e-5;
+
+
 
     double t0_att = 0.0;
     Eigen::Matrix<double,7,1> xhat_estimated;
@@ -242,7 +268,25 @@ int main(int argc, char** argv)
     // Tune these (or read from YAML).
     Eigen::Matrix<double,6,6> Psf = Eigen::Matrix<double,6,6>::Identity() * 1e-10;
     Eigen::Matrix<double,6,6> Qsf = Eigen::Matrix<double,6,6>::Identity() * 1e-10;
-    Eigen::Matrix<double,3,3> Rsf = Eigen::Matrix<double,3,3>::Identity() * 5e-13;
+    Eigen::Matrix<double,3,3> Rsf = Eigen::Matrix<double,3,3>::Identity() * 5e-12;
+
+    // Psf << 1e-10, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //        0.0, 1e-10, 0.0, 0.0, 0.0, 0.0,
+    //        0.0, 0.0, 1e-10, 0.0, 0.0, 0.0,
+    //        0.0, 0.0, 0.0, 1e-10, 0.0, 0.0,
+    //        0.0, 0.0, 0.0, 0.0, 1e-10, 0.0,
+    //        0.0, 0.0, 0.0, 0.0, 0.0, 1e-10;
+
+    // Qsf << 1e-10, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //        0.0, 1e-10, 0.0, 0.0, 0.0, 0.0,
+    //        0.0, 0.0, 1e-10, 0.0, 0.0, 0.0,
+    //        0.0, 0.0, 0.0, 1e-10, 0.0, 0.0,
+    //        0.0, 0.0, 0.0, 0.0, 1e-10, 0.0,
+    //        0.0, 0.0, 0.0, 0.0, 0.0, 1e-10;
+
+    // Rsf << 5e-12, 0.0, 0.0,
+    //        0.0, 5e-12, 0.0,
+    //        0.0, 0.0, 5e-12;
 
     state_estimator::KFSensorFusion kf(t0, x0, Psf, Qsf, Rsf, false, false);
 
@@ -256,6 +300,10 @@ int main(int argc, char** argv)
     std::size_t count = 0;
     std::size_t skipped = 0;
 
+    double total_step_us = 0.0;
+    double min_step_us = std::numeric_limits<double>::infinity();
+    double max_step_us = 0.0;
+
     while (std::getline(in, line)) {
         if (line.empty()) continue;
 
@@ -267,6 +315,7 @@ int main(int argc, char** argv)
         auto frow = splitCSVLine(fline);
 
         try {
+            auto start = std::chrono::high_resolution_clock::now();
             const double t_abs =
                 has_t ? getColAsDouble(row, idx, "t")
                       : getColAsDouble(row, idx, "timestamp");
@@ -393,6 +442,13 @@ int main(int argc, char** argv)
                    << quat_est.w() << "," << quat_est.x() << "," << quat_est.y() << "," << quat_est.z()
                    << "\n";
 
+            auto end = std::chrono::high_resolution_clock::now();
+            const double elapsed_us = std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(end - start).count();
+
+            total_step_us += elapsed_us;
+            min_step_us = std::min(min_step_us, elapsed_us);
+            max_step_us = std::max(max_step_us, elapsed_us);
+
             count++;
         }
         catch (const std::exception&) {
@@ -401,8 +457,15 @@ int main(int argc, char** argv)
         }
     }
 
-    std::cout << "Done.\n"
-              << "  rows   : " << count << "\n"
-              << "  skipped: " << skipped << "\n";
+    if (count > 0) {
+    const double avg_step_us = total_step_us / static_cast<double>(count);
+    std::cout << std::fixed << std::setprecision(3)
+              << "Step timing [us]: avg=" << avg_step_us
+              << ", min=" << min_step_us
+              << ", max=" << max_step_us << "\n"
+              << "Step timing [ms]: avg=" << (avg_step_us / 1000.0)
+              << ", min=" << (min_step_us / 1000.0)
+              << ", max=" << (max_step_us / 1000.0) << "\n";
+    }   
     return 0;
 }

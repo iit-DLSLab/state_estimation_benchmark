@@ -9,12 +9,15 @@
 // Readapted for this project by Ylenia Nistico in 2026.
 
 #include <array>
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -273,10 +276,10 @@ int main(int argc, char** argv)
     bool VCC = false;
     double cov_amplifier = 1;
 
-    // int max_backpp_no = 1;
-    // double backpp_rate = 0.5;
-    // int max_it_no = 1;
-    // double convergence_cond = 1e-3;
+    int max_backpp_no = 1;
+    double backpp_rate = 0.5;
+    int max_it_no = 1;
+    double convergence_cond = 1e-3;
 
     double gyro_exp = -8, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;
     double bg_exp = -10, ba_exp = -10;
@@ -291,11 +294,11 @@ int main(int argc, char** argv)
     cov.cov_enc_diagonal  << std::pow(10, encoder_exp), std::pow(10, encoder_exp), std::pow(10, encoder_exp);
     cov.cov_bias_gyro_diagonal << std::pow(10, bg_exp), std::pow(10, bg_exp), std::pow(10, bg_exp);
     cov.cov_bias_acc_diagonal  << std::pow(10, ba_exp), std::pow(10, ba_exp), std::pow(10, ba_exp);
-    // cov.cov_prior_orientation_diagonal << std::pow(10, pri_ori_exp), std::pow(10, pri_ori_exp), std::pow(10, pri_ori_exp);
-    // cov.cov_prior_velocity_diagonal    << std::pow(10, pri_vel_exp), std::pow(10, pri_vel_exp), std::pow(10, pri_vel_exp);
-    // cov.cov_prior_position_diagonal    << std::pow(10, pri_pos_exp), std::pow(10, pri_pos_exp), std::pow(10, pri_pos_exp);
-    // cov.cov_prior_bias_gyro_diagonal   << std::pow(10, pri_bg_exp), std::pow(10, pri_bg_exp), std::pow(10, pri_bg_exp);
-    // cov.cov_prior_bias_acc_diagonal    << std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp);
+    cov.cov_prior_orientation_diagonal << std::pow(10, pri_ori_exp), std::pow(10, pri_ori_exp), std::pow(10, pri_ori_exp);
+    cov.cov_prior_velocity_diagonal    << std::pow(10, pri_vel_exp), std::pow(10, pri_vel_exp), std::pow(10, pri_vel_exp);
+    cov.cov_prior_position_diagonal    << std::pow(10, pri_pos_exp), std::pow(10, pri_pos_exp), std::pow(10, pri_pos_exp);
+    cov.cov_prior_bias_gyro_diagonal   << std::pow(10, pri_bg_exp), std::pow(10, pri_bg_exp), std::pow(10, pri_bg_exp);
+    cov.cov_prior_bias_acc_diagonal    << std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp);
 
     Eigen::Matrix<double,16,1> x0;
     x0 << 0.0,0.0,0.0,      // px py pz
@@ -307,9 +310,9 @@ int main(int argc, char** argv)
     estimator_IEKF.estimator_common_struct_.leg_no = 4;
     estimator_IEKF.Optimization_Epsilon = convergence_cond;
     estimator_IEKF.Max_Iteration = max_it_no;
-    // estimator_IEKF.Max_backpropagate_num = max_backpp_no;
+    // estimator_IEKF.Max_backpropagate_no = max_backpp_no;
     // estimator_IEKF.backppgn_rate = backpp_rate;
-    // estimator_IEKF.NUM_OF_TRASH_DATA = starting_point;
+    estimator_IEKF.NUM_OF_TRASH_DATA = starting_point;
     estimator_IEKF.slip_rejection_mode = SR;
     estimator_IEKF.slip_threshold = slip_thr;
     estimator_IEKF.variable_contact_cov_mode = VCC;
@@ -335,6 +338,9 @@ int main(int argc, char** argv)
 
     std::size_t n = 0;
     std::size_t skipped = 0;
+    double total_onestep_us = 0.0;
+    double min_onestep_us = std::numeric_limits<double>::infinity();
+    double max_onestep_us = 0.0;
 
     while (std::getline(in, line)) {
         if (line.empty()) continue;
@@ -365,7 +371,15 @@ int main(int argc, char** argv)
             // remap and call the IEKF
             fillIEKFInputs(srow, sidx, fr, Sensor_, Contact_, forkin_set_);
             estimator_IEKF.estimator_common_struct_.dt = dt;
+
+            auto start = std::chrono::high_resolution_clock::now();
             estimator_IEKF.Onestep(Sensor_, Contact_, forkin_set_, state_);
+            auto end = std::chrono::high_resolution_clock::now();
+            const double elapsed_us =
+                std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(end - start).count();
+            total_onestep_us += elapsed_us;
+            min_onestep_us = std::min(min_onestep_us, elapsed_us);
+            max_onestep_us = std::max(max_onestep_us, elapsed_us);
 
             state_history.push_back(state_);
             n++;
@@ -379,7 +393,17 @@ int main(int argc, char** argv)
     std::filesystem::create_directories(out_dir);
     SaveFile::writeCSV(out_csv, state_history, t_abs_history);
 
-    std::cout << "Done. Processed " << n << " samples (skipped " << skipped << ").\n"
-              << "Saved: " << out_csv << "\n";
+    std::cout << "Done. Processed " << n << " samples (skipped " << skipped << ").\n";
+    if (n > 0) {
+        const double avg_onestep_us = total_onestep_us / static_cast<double>(n);
+        std::cout << std::fixed << std::setprecision(3)
+                  << "Onestep timing [us]: avg=" << avg_onestep_us
+                  << ", min=" << min_onestep_us
+                  << ", max=" << max_onestep_us << "\n"
+                  << "Onestep timing [ms]: avg=" << (avg_onestep_us / 1000.0)
+                  << ", min=" << (min_onestep_us / 1000.0)
+                  << ", max=" << (max_onestep_us / 1000.0) << "\n";
+    }
+    std::cout << "Saved: " << out_csv << "\n";
     return 0;
 }
