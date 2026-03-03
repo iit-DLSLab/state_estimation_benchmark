@@ -254,7 +254,8 @@ int main(int argc, char** argv)
 
     double t0_att = 0.0;
     Eigen::Matrix<double,7,1> xhat_estimated;
-    xhat_estimated << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+    // xhat_estimated << 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0; // bad initialization
+    xhat_estimated << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0; // q(w,x,y,z) in this order is the correct initialization
     xhat_estimated.head<4>() /= xhat_estimated.head<4>().norm();
 
     state_estimator::AttitudeBiasXKF attitude(t0_att, xhat_estimated, P0, Q, Ratt, f_n, m_n, ki, kp);
@@ -266,9 +267,9 @@ int main(int argc, char** argv)
     Eigen::Matrix<double,6,1> x0; x0.setZero();
 
     // Tune these (or read from YAML).
-    Eigen::Matrix<double,6,6> Psf = Eigen::Matrix<double,6,6>::Identity() * 1e-12;
-    Eigen::Matrix<double,6,6> Qsf = Eigen::Matrix<double,6,6>::Identity() * 1e-12;
-    Eigen::Matrix<double,3,3> Rsf = Eigen::Matrix<double,3,3>::Identity() * 5e-16;
+    Eigen::Matrix<double,6,6> Psf = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
+    Eigen::Matrix<double,6,6> Qsf = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
+    Eigen::Matrix<double,3,3> Rsf = Eigen::Matrix<double,3,3>::Identity() * 5e-17;
 
     // Psf << 1e-10, 0.0, 0.0, 0.0, 0.0, 0.0,
     //        0.0, 1e-10, 0.0, 0.0, 0.0, 0.0,
@@ -412,7 +413,7 @@ int main(int argc, char** argv)
             if (sum < 1.0) sum = 1.0; // avoid crazy spikes when flying; keep last would be better, but this is safe
 
             const Eigen::Vector3d v_base_b =
-                (w_lf*v_lf_b + w_rf*v_rf_b + w_lh*v_lh_b + w_rh*v_rh_b) / (sum + 1e-9);
+                (w_lf*v_lf_b + w_rf*v_rf_b + w_lh*v_lh_b + w_rh*v_rh_b) / (sum + 1e-5);
 
             const Eigen::Matrix3d w_R_b = iit::commons::quatToRotMat(quat_est).transpose();
             const Eigen::Vector3d v_base_w = w_R_b * v_base_b;

@@ -302,7 +302,8 @@ int main(int argc, char** argv)
 
     Eigen::Matrix<double,16,1> x0;
     x0 << 0.0,0.0,0.0,      // px py pz
-          1.0,0.0,0.0,0.0,  // q(w,x,y,z)
+        //   0.0,0.0,1.0,0.0,  // q(w,x,y,z) // bad initialization can cause convergence issues, especially in the orientation.
+          1.0,0.0,0.0,0.0,  // q(w,x,y,z) in this order is the correct initialization
           0.0,0.0,0.0,      // vx, vy, vz
           0.0,0.0,0.0,      // bgx, bgy, bgz
           0.0,0.0,0.0;      // bax, bay, baz
