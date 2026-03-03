@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 
 DATASET_ROOT = "data/anymalD_grandtour"
-# GT_FILE      = f"{DATASET_ROOT}/groundtruth.csv"
-GT_FILE      = f"{DATASET_ROOT}/anymal_state.csv"
+GT_FILE      = f"{DATASET_ROOT}/groundtruth.csv"
+# GT_FILE      = f"{DATASET_ROOT}/anymal_state.csv"
 FUSED_FILE   = f"{DATASET_ROOT}/muse/fused_state.csv"
 SMOOTHER_FILE = f"{DATASET_ROOT}/invariant_smoother/fused_state.csv"
 IEKF_FILE     = f"{DATASET_ROOT}/iekf/fused_state.csv"
@@ -52,18 +52,18 @@ def main():
     t_ik = t_ik_abs - t_ik_abs[0]
 
     # --- GT signals
-    # p_gt = gt[["x","y","z"]].to_numpy(dtype=float)
-    # v_gt = gt[["vx","vy","vz"]].to_numpy(dtype=float)
-
-    # # GT quat is (qx,qy,qz,qw) -> scipy expects (x,y,z,w)
-    # q_gt_xyzw = gt[["qx","qy","qz","qw"]].to_numpy(dtype=float)
-
-    # --- ANYmal state from internal state estimator
-    p_gt = gt[["px","py","pz"]].to_numpy(dtype=float)
+    p_gt = gt[["x","y","z"]].to_numpy(dtype=float)
     v_gt = gt[["vx","vy","vz"]].to_numpy(dtype=float)
 
-    # ANYmal quat is (qx,qy,qz,qw) -> scipy expects (x,y,z,w)
+    # GT quat is (qx,qy,qz,qw) -> scipy expects (x,y,z,w)
     q_gt_xyzw = gt[["qx","qy","qz","qw"]].to_numpy(dtype=float)
+
+    # --- ANYmal state from internal state estimator
+    # p_gt = gt[["px","py","pz"]].to_numpy(dtype=float)
+    # v_gt = gt[["vx","vy","vz"]].to_numpy(dtype=float)
+
+    # ANYmal quat is (qx,qy,qz,qw) -> scipy expects (x,y,z,w)
+    # q_gt_xyzw = gt[["qx","qy","qz","qw"]].to_numpy(dtype=float)
 
     # --- Fused signals
     p_fu = fused[["px","py","pz"]].to_numpy(dtype=float)

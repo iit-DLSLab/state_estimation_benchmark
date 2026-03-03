@@ -27,10 +27,10 @@ public:
       //             0, 1, 0,
       //             0, 0, -1;
       Eigen::Quaterniond b_quat_imu;
-      b_quat_imu.w() = 3.749399456654644e-33;
-      b_quat_imu.x() = 6.123233995736766e-17;
+      b_quat_imu.w() = 0.0;
+      b_quat_imu.x() = 0.0;
       b_quat_imu.y() = 1.0;
-      b_quat_imu.z() = 6.123233995736766e-17;
+      b_quat_imu.z() = 0.0;
       b_R_imu_ = iit::commons::quatToRotMat(b_quat_imu).transpose();
 
       const Eigen::Vector3d omega_b = b_R_imu_ * s.omega_imu;

@@ -24,9 +24,9 @@ def main():
     t_leg = leg["t_rel"].to_numpy()
 
     v_leg_w = np.column_stack([
-        leg["v_base_w_x"].to_numpy(),
-        leg["v_base_w_y"].to_numpy(),
-        leg["v_base_w_z"].to_numpy(),
+        leg["v_base_b_x"].to_numpy(),
+        leg["v_base_b_y"].to_numpy(),
+        leg["v_base_b_z"].to_numpy(),
     ])
 
     # ------------------------
