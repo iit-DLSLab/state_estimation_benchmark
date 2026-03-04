@@ -1,18 +1,39 @@
 #!/usr/bin/env python3
+"""
+plots.py — robust plotting for GT vs MUSE / IEKF / IS
+
+Fixes vs your original:
+- Quaternion resampling uses SLERP (no component-wise interp).
+- Time-shifts are applied first, then we crop to the common time window across ALL signals,
+  so SLERP never goes out of range.
+- Uses one common timeline = (cropped) MUSE timeline after time-shift.
+- Optional unwrap for Euler angles (kept, but commentable).
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.spatial.transform import Rotation as R
+
+from scipy.spatial.transform import Rotation as R, Slerp
 from scipy.signal import savgol_filter
 
 
+# =======================
+# Paths
+# =======================
 DATASET_ROOT = "data/anymalD_grandtour"
-GT_FILE       = f"{DATASET_ROOT}/groundtruth.csv"
-FUSED_FILE    = f"{DATASET_ROOT}/muse/fused_state.csv"
-SMOOTHER_FILE = f"{DATASET_ROOT}/invariant_smoother/fused_state.csv"
-IEKF_FILE     = f"{DATASET_ROOT}/iekf/fused_state.csv"
+GT_FILE       = f"{DATASET_ROOT}/groundtruth_rotated_vel.csv"
 
-# Umeyama alignment: p_gt = R_align @ p_est + t_align
+FUSED_FILE    = f"{DATASET_ROOT}/muse/fused_state_bad_init_ori.csv"
+IEKF_FILE     = f"{DATASET_ROOT}/iekf/fused_state_bad_init_ori.csv"
+SMOOTHER_FILE = f"{DATASET_ROOT}/invariant_smoother/fused_state_bad_init_ori.csv"
+
+
+# =======================
+# Umeyama alignment (est -> GT)
+# position: p_gt ≈ R_align @ p_est + t_align
+# orientation: R_wb_gt ≈ R_align * R_wb_est
+# =======================
 ALIGN = {
     "muse": {
         "R": np.array([
@@ -40,45 +61,50 @@ ALIGN = {
     },
 }
 
-USE_NUMERIC_GT_VEL = False        # set False to use logged gt["vx","vy","vz"]
-VEL_SAVGOL_WINDOW = 31           # odd number
-VEL_SAVGOL_POLY = 3
 
-def numerical_velocity_from_position(t, p, smooth=True, window=31, poly=3):
-    """
-    Compute velocity by differentiating position with non-uniform time support.
-    Uses central differences (np.gradient) + optional Savitzky-Golay smoothing.
-    """
-    # dp/dt for each axis
-    vx = np.gradient(p[:, 0], t)
-    vy = np.gradient(p[:, 1], t)
-    vz = np.gradient(p[:, 2], t)
-    v = np.column_stack((vx, vy, vz))
-
-    if smooth and len(v) >= max(window, poly + 2):
-        # window must be odd and <= number of samples
-        w = min(window, len(v) if len(v) % 2 == 1 else len(v) - 1)
-        w = max(w, poly + 2 + ((poly + 2) % 2 == 0))  # ensure > poly and odd
-        if w % 2 == 0:
-            w += 1
-        if w <= len(v):
-            v[:, 0] = savgol_filter(v[:, 0], w, poly)
-            v[:, 1] = savgol_filter(v[:, 1], w, poly)
-            v[:, 2] = savgol_filter(v[:, 2], w, poly)
-
-    return v
-
+# =======================
+# Helpers
+# =======================
 def interp_vec(t_src, y_src, t_dst):
-    """Linear interpolation column-wise."""
+    """Linear interpolation column-wise for vector signals (pos/vel)."""
+    t_src = np.asarray(t_src, dtype=float)
+    y_src = np.asarray(y_src, dtype=float)
+    t_dst = np.asarray(t_dst, dtype=float)
+
     out = np.zeros((len(t_dst), y_src.shape[1]))
     for i in range(y_src.shape[1]):
         out[:, i] = np.interp(t_dst, t_src, y_src[:, i])
     return out
 
+
+def slerp_quat(t_src, q_xyzw_src, t_dst):
+    """
+    SLERP quaternion interpolation.
+    q must be in (x,y,z,w) order.
+    SciPy Slerp requires strictly increasing t_src, so duplicates are removed.
+    """
+    t_src = np.asarray(t_src, dtype=float)
+    q_xyzw_src = np.asarray(q_xyzw_src, dtype=float)
+
+    # Remove duplicate timestamps (keep first)
+    t_unique, idx = np.unique(t_src, return_index=True)
+    q_unique = q_xyzw_src[idx]
+
+    r_src = R.from_quat(q_unique)
+    slerp = Slerp(t_unique, r_src)
+    r_dst = slerp(t_dst)
+    return r_dst.as_quat()
+
+
 def unwrap_deg(a_deg):
     return np.rad2deg(np.unwrap(np.deg2rad(a_deg)))
 
+
 def align_quat_sign(q_xyzw_ref, q_xyzw):
+    """
+    Make quaternion signs consistent over time (avoid sign flips), and also
+    keep same “hemisphere” as reference at the first sample.
+    """
     q = q_xyzw.copy()
     for i in range(1, len(q)):
         if np.dot(q[i - 1], q[i]) < 0.0:
@@ -87,33 +113,41 @@ def align_quat_sign(q_xyzw_ref, q_xyzw):
         q *= -1.0
     return q
 
+
 def apply_alignment(p, v, q_xyzw, R_align, t_align, vel_in_body=False):
-    # orientation in estimator world frame
+    """
+    Apply SE(3) alignment (R_align, t_align) to pos, vel, orientation.
+    Assumes q is R_wb (world-from-body) in estimator world.
+    Returns aligned in GT world.
+
+    - pos: p' = R_align p + t
+    - ori: R_wb' = R_align * R_wb
+    - vel:
+        if vel_in_body: v_body -> v_world_est = R_wb_est * v_body -> v' = R_align v_world_est
+        else: v already in estimator world -> v' = R_align v
+    """
     r_wb_est = R.from_quat(q_xyzw)
 
-    # position: p' = R_align p + t
     p_al = (R_align @ p.T).T + t_align
 
-    # orientation: R_wb' = R_align * R_wb
     r_align = R.from_matrix(R_align)
     r_wb_al = r_align * r_wb_est
     q_al = r_wb_al.as_quat()
 
-    # velocity
     if vel_in_body:
-        # v is body-frame -> estimator world -> GT world
         v_world_est = r_wb_est.apply(v)
         v_al = (R_align @ v_world_est.T).T
     else:
-        # v already in estimator world frame
         v_al = (R_align @ v.T).T
 
     return p_al, v_al, q_al
+
 
 def estimate_time_shift_rmse(t_ref, sig_ref, t_est, sig_est, search_s=10.0, step_s=0.005):
     """
     Find tau minimizing RMSE between sig_ref(t) and sig_est(t) after shifting est time:
         t_est_shifted = t_est + tau
+    Uses linear interp of sig_est onto t_ref over overlapping support.
     """
     taus = np.arange(-search_s, search_s + 0.5 * step_s, step_s)
     best_tau = 0.0
@@ -121,6 +155,7 @@ def estimate_time_shift_rmse(t_ref, sig_ref, t_est, sig_est, search_s=10.0, step
 
     for tau in taus:
         t_es = t_est + tau
+        # overlap region (in ref time)
         mask = (t_ref >= t_es[0]) & (t_ref <= t_es[-1])
         if np.count_nonzero(mask) < 100:
             continue
@@ -128,62 +163,80 @@ def estimate_time_shift_rmse(t_ref, sig_ref, t_est, sig_est, search_s=10.0, step
         est_i = np.interp(t_ref[mask], t_es, sig_est)
         err = est_i - sig_ref[mask]
         rmse = np.sqrt(np.mean(err * err))
+
         if rmse < best_rmse:
             best_rmse = rmse
             best_tau = tau
 
     return best_tau, best_rmse
 
+
+def crop_by_time(t, *arrays, t_min, t_max):
+    """Crop time and aligned arrays to [t_min, t_max]."""
+    t = np.asarray(t, dtype=float)
+    mask = (t >= t_min) & (t <= t_max)
+    out = [t[mask]]
+    for a in arrays:
+        out.append(a[mask])
+    return out
+
+
+def common_time_window(*time_vectors):
+    """Intersection window [t_min, t_max] across all vectors (assumed sorted)."""
+    t_min = max(tv[0] for tv in time_vectors)
+    t_max = min(tv[-1] for tv in time_vectors)
+    if not (t_min < t_max):
+        raise ValueError(f"No common time window: t_min={t_min}, t_max={t_max}")
+    return t_min, t_max
+
+
+# =======================
+# Main
+# =======================
 def main():
+    # --- Load
     gt = pd.read_csv(GT_FILE)
-    fused = pd.read_csv(FUSED_FILE)
-    smoother = pd.read_csv(SMOOTHER_FILE)
-    iekf = pd.read_csv(IEKF_FILE)
+    fused = pd.read_csv(FUSED_FILE)         # MUSE
+    smoother = pd.read_csv(SMOOTHER_FILE)   # IS
+    iekf = pd.read_csv(IEKF_FILE)           # IEKF
 
-    # --- time vectors
-    t_gt_abs = gt["t"].to_numpy(dtype=float)
-    t_fu_abs = fused["t_abs"].to_numpy(dtype=float)
-    t_sm_abs = smoother["t_abs"].to_numpy(dtype=float)
-    t_ik_abs = iekf["t_abs"].to_numpy(dtype=float)
+    # --- Time vectors (relative)
+    t_gt = gt["t"].to_numpy(float)
+    t_gt = t_gt - t_gt[0]
 
-    t_gt = t_gt_abs - t_gt_abs[0]
-    t_fu = t_fu_abs - t_fu_abs[0]
-    t_sm = t_sm_abs - t_sm_abs[0]
-    t_ik = t_ik_abs - t_ik_abs[0]
+    t_fu = fused["t_abs"].to_numpy(float)
+    t_fu = t_fu - t_fu[0]
+
+    t_sm = smoother["t_abs"].to_numpy(float)
+    t_sm = t_sm - t_sm[0]
+
+    t_ik = iekf["t_abs"].to_numpy(float)
+    t_ik = t_ik - t_ik[0]
 
     # --- GT signals
-    p_gt = gt[["x", "y", "z"]].to_numpy(dtype=float)
-    v_gt = gt[["vx", "vy", "vz"]].to_numpy(dtype=float)
-    q_gt_xyzw = gt[["qx", "qy", "qz", "qw"]].to_numpy(dtype=float)
-
-    # if USE_NUMERIC_GT_VEL:
-    #     v_gt = numerical_velocity_from_position(
-    #         t_gt, p_gt, smooth=True, window=VEL_SAVGOL_WINDOW, poly=VEL_SAVGOL_POLY
-    #     )
-    # else:
-    #     v_gt = gt[["vx", "vy", "vz"]].to_numpy(dtype=float)
-
-    q_gt_xyzw = gt[["qx", "qy", "qz", "qw"]].to_numpy(dtype=float)
+    p_gt = gt[["x", "y", "z"]].to_numpy(float)
+    v_gt = gt[["vx", "vy", "vz"]].to_numpy(float)
+    q_gt = gt[["qx", "qy", "qz", "qw"]].to_numpy(float)
 
     # --- Estimator signals
-    p_fu = fused[["px", "py", "pz"]].to_numpy(dtype=float)
-    v_fu = fused[["vx", "vy", "vz"]].to_numpy(dtype=float)
-    q_fu_xyzw = fused[["qx", "qy", "qz", "qw"]].to_numpy(dtype=float)
+    p_fu = fused[["px", "py", "pz"]].to_numpy(float)
+    v_fu = fused[["vx", "vy", "vz"]].to_numpy(float)
+    q_fu = fused[["qx", "qy", "qz", "qw"]].to_numpy(float)
 
-    p_sm = smoother[["px", "py", "pz"]].to_numpy(dtype=float)
-    v_sm = smoother[["vx", "vy", "vz"]].to_numpy(dtype=float)
-    q_sm_xyzw = smoother[["qx", "qy", "qz", "qw"]].to_numpy(dtype=float)
+    p_sm = smoother[["px", "py", "pz"]].to_numpy(float)
+    v_sm = smoother[["vx", "vy", "vz"]].to_numpy(float)
+    q_sm = smoother[["qx", "qy", "qz", "qw"]].to_numpy(float)
 
-    p_ik = iekf[["px", "py", "pz"]].to_numpy(dtype=float)
-    v_ik = iekf[["vx", "vy", "vz"]].to_numpy(dtype=float)
-    q_ik_xyzw = iekf[["qx", "qy", "qz", "qw"]].to_numpy(dtype=float)
+    p_ik = iekf[["px", "py", "pz"]].to_numpy(float)
+    v_ik = iekf[["vx", "vy", "vz"]].to_numpy(float)
+    q_ik = iekf[["qx", "qy", "qz", "qw"]].to_numpy(float)
 
-    # --- Apply Umeyama alignment per estimator (into GT frame)
-    p_fu, v_fu, q_fu_xyzw = apply_alignment(p_fu, v_fu, q_fu_xyzw, ALIGN["muse"]["R"], ALIGN["muse"]["t"])
-    p_sm, v_sm, q_sm_xyzw = apply_alignment(p_sm, v_sm, q_sm_xyzw, ALIGN["is"]["R"], ALIGN["is"]["t"])
-    p_ik, v_ik, q_ik_xyzw = apply_alignment(p_ik, v_ik, q_ik_xyzw, ALIGN["iekf"]["R"], ALIGN["iekf"]["t"])
+    # --- Apply spatial alignment into GT frame
+    p_fu, v_fu, q_fu = apply_alignment(p_fu, v_fu, q_fu, ALIGN["muse"]["R"], ALIGN["muse"]["t"])
+    p_sm, v_sm, q_sm = apply_alignment(p_sm, v_sm, q_sm, ALIGN["is"]["R"], ALIGN["is"]["t"])
+    p_ik, v_ik, q_ik = apply_alignment(p_ik, v_ik, q_ik, ALIGN["iekf"]["R"], ALIGN["iekf"]["t"])
 
-    # --- Estimate and apply per-estimator time shift using speed magnitude
+    # --- Estimate time shifts (using speed magnitude AFTER spatial alignment)
     s_gt = np.linalg.norm(v_gt, axis=1)
     s_fu = np.linalg.norm(v_fu, axis=1)
     s_sm = np.linalg.norm(v_sm, axis=1)
@@ -193,56 +246,69 @@ def main():
     tau_sm, rmse_sm = estimate_time_shift_rmse(t_gt, s_gt, t_sm, s_sm)
     tau_ik, rmse_ik = estimate_time_shift_rmse(t_gt, s_gt, t_ik, s_ik)
 
-    t_fu = t_fu + tau_fu #5
-    t_sm = t_sm + tau_sm #5
-    t_ik = t_ik + tau_ik #5
-
     print(f"[time-align] MUSE tau={tau_fu:+.4f}s, RMSE={rmse_fu:.4f}")
     print(f"[time-align] IS   tau={tau_sm:+.4f}s, RMSE={rmse_sm:.4f}")
     print(f"[time-align] IEKF tau={tau_ik:+.4f}s, RMSE={rmse_ik:.4f}")
 
-    # --- Interpolate GT to MUSE timeline (for direct ovep_fu, v_fu, q_fu_xyzwrlays)
-    p_gt_i = interp_vec(t_gt, p_gt, t_fu)
-    v_gt_i = interp_vec(t_gt, v_gt, t_fu)
-    q_gt_i = interp_vec(t_gt, q_gt_xyzw, t_fu)
+    # --- Apply time shifts
+    t_fu = t_fu + tau_fu
+    t_sm = t_sm + tau_sm
+    t_ik = t_ik + tau_ik
+
+    # --- Common time window across GT + all estimators (after shifts)
+    t_min, t_max = common_time_window(t_gt, t_fu, t_sm, t_ik)
+
+    # --- Define common timeline as cropped MUSE timeline
+    t_common, p_fu, v_fu, q_fu = crop_by_time(t_fu, p_fu, v_fu, q_fu, t_min=t_min, t_max=t_max)
+
+    # --- Resample others onto common timeline
+    p_gt_i = interp_vec(t_gt, p_gt, t_common)
+    v_gt_i = interp_vec(t_gt, v_gt, t_common)
+    q_gt_i = slerp_quat(t_gt, q_gt, t_common)
+
+    p_sm_i = interp_vec(t_sm, p_sm, t_common)
+    v_sm_i = interp_vec(t_sm, v_sm, t_common)
+    q_sm_i = slerp_quat(t_sm, q_sm, t_common)
+
+    p_ik_i = interp_vec(t_ik, p_ik, t_common)
+    v_ik_i = interp_vec(t_ik, v_ik, t_common)
+    q_ik_i = slerp_quat(t_ik, q_ik, t_common)
+
+    # Normalize quats (safety)
     q_gt_i = q_gt_i / np.linalg.norm(q_gt_i, axis=1, keepdims=True)
-
-    # Interpolate IS/IEKF to MUSE timeline for plotting consistency
-    p_sm_i = interp_vec(t_sm, p_sm, t_fu)
-    v_sm_i = interp_vec(t_sm, v_sm, t_fu)
-    q_sm_i = interp_vec(t_sm, q_sm_xyzw, t_fu)
+    q_fu   = q_fu   / np.linalg.norm(q_fu,   axis=1, keepdims=True)
     q_sm_i = q_sm_i / np.linalg.norm(q_sm_i, axis=1, keepdims=True)
-
-    p_ik_i = interp_vec(t_ik, p_ik, t_fu)
-    v_ik_i = interp_vec(t_ik, v_ik, t_fu)
-    q_ik_i = interp_vec(t_ik, q_ik_xyzw, t_fu)
     q_ik_i = q_ik_i / np.linalg.norm(q_ik_i, axis=1, keepdims=True)
 
-    # --- Align quaternion signs for clean plots
-    q_fu_xyzw = align_quat_sign(q_gt_i, q_fu_xyzw)
-    q_gt_i = align_quat_sign(q_fu_xyzw, q_gt_i)
+    # Sign-consistency for clean plots
+    q_fu   = align_quat_sign(q_gt_i, q_fu)
+    q_gt_i = align_quat_sign(q_fu,   q_gt_i)
     q_sm_i = align_quat_sign(q_gt_i, q_sm_i)
     q_ik_i = align_quat_sign(q_gt_i, q_ik_i)
 
     # --- Euler angles
     rpy_gt = R.from_quat(q_gt_i).as_euler("xyz", degrees=True)
-    rpy_fu = R.from_quat(q_fu_xyzw).as_euler("xyz", degrees=True)
+    rpy_fu = R.from_quat(q_fu).as_euler("xyz", degrees=True)
     rpy_sm = R.from_quat(q_sm_i).as_euler("xyz", degrees=True)
     rpy_ik = R.from_quat(q_ik_i).as_euler("xyz", degrees=True)
 
+    # Optional unwrap (often helps readability; comment out if you prefer raw wrap)
     for arr in (rpy_gt, rpy_fu, rpy_sm, rpy_ik):
-        arr[:, 2] = unwrap_deg(arr[:, 2])
+        arr[:, 2] = unwrap_deg(arr[:, 2])  # yaw
+        arr[:, 0] = unwrap_deg(arr[:, 0])  # roll
 
     # =======================
-    # Position plots
+    # Plots
     # =======================
     labels = ["x", "y", "z"]
+
+    # Position
     fig1, ax1 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
     for i in range(3):
-        ax1[i].plot(t_fu, p_gt_i[:, i]-p_gt_i[0, i], label="GT", linewidth=1.0)
-        ax1[i].plot(t_fu, p_fu[:, i]-p_fu[0, i], label="MUSE", linewidth=1.5)
-        ax1[i].plot(t_ik, p_ik_i[:, i]-p_ik_i[0, i], label="IEKF", linewidth=1.0)
-        ax1[i].plot(t_sm, p_sm_i[:, i]-p_sm_i[0, i], label="IS", linewidth=1.0)
+        ax1[i].plot(t_common, p_gt_i[:, i] - p_gt_i[0, i], "--", label="GT", linewidth=1.0)
+        ax1[i].plot(t_common, p_fu[:, i]   - p_fu[0, i],   label="MUSE", linewidth=1.5)
+        ax1[i].plot(t_common, p_ik_i[:, i] - p_ik_i[0, i], ":", label="IEKF", linewidth=1.0)
+        ax1[i].plot(t_common, p_sm_i[:, i] - p_sm_i[0, i], "-.", label="IS", linewidth=1.0)
         ax1[i].set_ylabel(f"p_{labels[i]} [m]")
         ax1[i].grid(True)
         ax1[i].legend()
@@ -250,20 +316,13 @@ def main():
     ax1[0].set_title("Position: Fused vs Ground Truth (aligned frame)")
     plt.tight_layout()
 
-    # =======================
-    # Velocity plots
-    # =======================
-    rot_gt2est = np.array([[0.0, 1.0, 0.0],
-                           [1.0, 0.0, 0.0],
-                           [0.0, 0.0,-1.0]])
-    v_gt_rotated = (rot_gt2est @ v_gt_i.T).T
-
+    # Velocity
     fig2, ax2 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
     for i in range(3):
-        ax2[i].plot(t_fu, v_gt_rotated[:, i]-v_gt_rotated[0, i], label="GT", linewidth=1.0)
-        ax2[i].plot(t_fu, v_fu[:, i]-v_fu[0, i], label="MUSE", linewidth=1.5)
-        ax2[i].plot(t_ik, v_ik_i[:, i]-v_ik_i[0, i], label="IEKF", linewidth=1.0)
-        ax2[i].plot(t_sm, v_sm_i[:, i]-v_sm_i[0, i], label="IS", linewidth=1.0)
+        ax2[i].plot(t_common, v_gt_i[:, i] - v_gt_i[0, i], "--", label="GT", linewidth=1.0)
+        ax2[i].plot(t_common, v_fu[:, i]   - v_fu[0, i],   label="MUSE", linewidth=1.5)
+        ax2[i].plot(t_common, v_ik_i[:, i] - v_ik_i[0, i], ":", label="IEKF", linewidth=1.0)
+        ax2[i].plot(t_common, v_sm_i[:, i] - v_sm_i[0, i], "-.", label="IS", linewidth=1.0)
         ax2[i].set_ylabel(f"v_{labels[i]} [m/s]")
         ax2[i].grid(True)
         ax2[i].legend()
@@ -271,16 +330,14 @@ def main():
     ax2[0].set_title("Velocity: Fused vs Ground Truth (aligned frame)")
     plt.tight_layout()
 
-    # =======================
-    # RPY plots
-    # =======================
+    # RPY
     fig3, ax3 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
     rpy_names = ["roll", "pitch", "yaw"]
     for i in range(3):
-        ax3[i].plot(t_fu, unwrap_deg(rpy_gt[:, i]-rpy_gt[0, i]), "--", label="GT", linewidth=1.0)
-        ax3[i].plot(t_fu, unwrap_deg(rpy_fu[:, i]-rpy_fu[0, i]), label="MUSE", linewidth=1.5)
-        ax3[i].plot(t_ik, unwrap_deg(rpy_ik[:, i]-rpy_ik[0, i]), ":", label="IEKF", linewidth=1.0)
-        ax3[i].plot(t_sm, unwrap_deg(rpy_sm[:, i]-rpy_sm[0, i]), "-.", label="IS", linewidth=1.0)
+        ax3[i].plot(t_common, rpy_gt[:, i], "--", label="GT", linewidth=1.0)
+        ax3[i].plot(t_common, rpy_fu[:, i], label="MUSE", linewidth=1.5)
+        ax3[i].plot(t_common, rpy_ik[:, i], ":", label="IEKF", linewidth=1.0)
+        ax3[i].plot(t_common, rpy_sm[:, i], "-.", label="IS", linewidth=1.0)
         ax3[i].set_ylabel(f"{rpy_names[i]} [deg]")
         ax3[i].grid(True)
         ax3[i].legend()
@@ -288,16 +345,14 @@ def main():
     ax3[0].set_title("Attitude (RPY): Fused vs Ground Truth (aligned frame)")
     plt.tight_layout()
 
-    # =======================
-    # Quaternion component plots
-    # =======================
+    # Quaternion components
     fig4, ax4 = plt.subplots(4, 1, figsize=(11, 9), sharex=True)
     qlabs = ["qx", "qy", "qz", "qw"]
     for i, lab in enumerate(qlabs):
-        ax4[i].plot(t_fu, q_gt_i[:, i]-q_gt_i[0, i], "--", label="GT", linewidth=1.0)
-        ax4[i].plot(t_fu, q_fu_xyzw[:, i]-q_fu_xyzw[0, i], label="MUSE", linewidth=1.2)
-        ax4[i].plot(t_ik, q_ik_i[:, i]-q_ik_i[0, i], ":", label="IEKF", linewidth=1.0)
-        ax4[i].plot(t_sm, q_sm_i[:, i]-q_sm_i[0, i], "-.", label="IS", linewidth=1.0)
+        ax4[i].plot(t_common, q_gt_i[:, i], "--", label="GT", linewidth=1.0)
+        ax4[i].plot(t_common, q_fu[:, i],   label="MUSE", linewidth=1.2)
+        ax4[i].plot(t_common, q_ik_i[:, i], ":", label="IEKF", linewidth=1.0)
+        ax4[i].plot(t_common, q_sm_i[:, i], "-.", label="IS", linewidth=1.0)
         ax4[i].set_ylabel(lab)
         ax4[i].grid(True)
         ax4[i].legend()
@@ -305,14 +360,12 @@ def main():
     ax4[0].set_title("Quaternion components (aligned sign, aligned frame)")
     plt.tight_layout()
 
-    # =======================
-    # Trajectory XY
-    # =======================
+    # Trajectory XY (aligned frame)
     plt.figure(figsize=(8, 8))
-    plt.plot(p_gt[:, 0], p_gt[:, 1]-p_gt[0, 1], "--", label="GT", linewidth=1.2)
-    plt.plot(p_fu[:, 0], p_fu[:, 1]-p_fu[0, 1], label="MUSE", linewidth=1.5)
-    plt.plot(p_sm[:, 0], p_sm[:, 1]-p_sm[0, 1], "-.", label="IS", linewidth=1.0)
-    plt.plot(p_ik[:, 0], p_ik[:, 1]-p_ik[0, 1], ":", label="IEKF", linewidth=1.0)
+    plt.plot(p_gt_i[:, 0], p_gt_i[:, 1] - p_gt_i[0, 1], "--", label="GT", linewidth=1.2)
+    plt.plot(p_fu[:, 0],   p_fu[:, 1]   - p_fu[0, 1],         label="MUSE", linewidth=1.5)
+    plt.plot(p_sm_i[:, 0], p_sm_i[:, 1] - p_sm_i[0, 1], "-.", label="IS", linewidth=1.0)
+    plt.plot(p_ik_i[:, 0], p_ik_i[:, 1] - p_ik_i[0, 1], ":",  label="IEKF", linewidth=1.0)
     plt.xlabel("x [m]")
     plt.ylabel("y [m]")
     plt.title("Trajectory XY (aligned frame)")
@@ -322,6 +375,7 @@ def main():
     plt.tight_layout()
 
     plt.show()
+
 
 if __name__ == "__main__":
     main()

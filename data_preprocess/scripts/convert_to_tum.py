@@ -111,17 +111,17 @@ def main() -> None:
     gt_path = root / "groundtruth.csv"
     anymal_state_path = root / "anymal_state.csv"
 
-    muse_path = root / "muse" / "fused_state.csv"
-    iekf_path = root / "iekf" / "fused_state.csv"
-    is_path = root / "invariant_smoother" / "fused_state.csv"
+    muse_path = root / "muse" / "fused_state_bad_init_ori.csv"
+    iekf_path = root / "iekf" / "fused_state_bad_init_ori.csv"
+    is_path = root / "invariant_smoother" / "fused_state_bad_init_ori.csv"
 
     # Outputs (requested names + new anymal_state output)
     gt_out = outdir / "groundtruth_traj_tum.csv"
     anymal_state_out = outdir / "anymal_state_traj_tum.csv"
 
-    muse_out = outdir / "muse_traj_tum.csv"
-    iekf_out = outdir / "iekf_traj_tum.csv"
-    is_out = outdir / "is_traj_tum.csv"
+    muse_out = outdir / "muse_traj_bad_init_ori_tum.csv"
+    iekf_out = outdir / "iekf_traj_bad_init_ori_tum.csv"
+    is_out = outdir / "is_traj_bad_init_ori_tum.csv"
 
     # Convert + save
     if not gt_path.exists():
