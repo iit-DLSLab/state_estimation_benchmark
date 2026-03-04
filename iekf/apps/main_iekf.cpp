@@ -244,7 +244,7 @@ int main(int argc, char** argv)
     const std::string feet_csv   = dataset_root + "/feet_kinematics.csv";
 
     const std::string out_dir    = dataset_root + "/iekf";
-    const std::string out_csv    = out_dir + "/fused_state.csv";
+    const std::string out_csv    = out_dir + "/fused_state_bad_init_ori.csv";
 
     std::cout << "Invariant Extended Kalman Filter (offline, using remapped inputs)\n"
               << "  Sensor: " << sensor_csv << "\n"
@@ -302,8 +302,8 @@ int main(int argc, char** argv)
 
     Eigen::Matrix<double,16,1> x0;
     x0 << 0.0,0.0,0.0,      // px py pz
-        //   0.0,0.0,1.0,0.0,  // q(w,x,y,z) // bad initialization can cause convergence issues, especially in the orientation.
-          1.0,0.0,0.0,0.0,  // q(w,x,y,z) in this order is the correct initialization
+          0.0, 1.0, 0.0, 0.0,  // q(w,x,y,z) // bad initialization can cause convergence issues, especially in the orientation.
+        //   1.0,0.0,0.0,0.0,  // q(w,x,y,z) in this order is the correct initialization
           0.0,0.0,0.0,      // vx, vy, vz
           0.0,0.0,0.0,      // bgx, bgy, bgz
           0.0,0.0,0.0;      // bax, bay, baz

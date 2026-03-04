@@ -126,7 +126,7 @@ int main(int argc, char** argv)
 
     const std::string out_att_csv = dataset_root + "/muse/attitude_estimate_muse.csv";
     const std::string out_lo_csv  = dataset_root + "/muse/leg_odometry.csv";
-    const std::string out_fs_csv  = dataset_root + "/muse/fused_state.csv";
+    const std::string out_fs_csv  = dataset_root + "/muse/fused_state_bad_init_ori.csv";
 
     std::cout << "MUSE OFFLINE (single executable)\n";
     std::cout << "  sensor_data : " << sensor_csv << "\n";
@@ -229,33 +229,10 @@ int main(int argc, char** argv)
     Eigen::Matrix<double,6,6> Q = Eigen::Matrix<double,6,6>::Identity() * 1e-15;
     Eigen::Matrix<double,6,6> Ratt = Eigen::Matrix<double,6,6>::Identity() * 1e-6;
 
-    // P0 << 1e-12, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //       0.0, 1e-12, 0.0, 0.0, 0.0, 0.0,
-    //       0.0, 0.0, 1e-12, 0.0, 0.0, 0.0,
-    //       0.0, 0.0, 0.0, 1e-12, 0.0, 0.0,
-    //       0.0, 0.0, 0.0, 0.0, 1e-12, 0.0,
-    //       0.0, 0.0, 0.0, 0.0, 0.0, 1e-12;
-
-    // Q << 1e-12, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //      0.0, 1e-12, 0.0, 0.0, 0.0, 0.0,
-    //      0.0, 0.0, 1e-12, 0.0, 0.0, 0.0,
-    //      0.0, 0.0, 0.0, 1e-12, 0.0, 0.0,
-    //      0.0, 0.0, 0.0, 0.0, 1e-12, 0.0,
-    //      0.0, 0.0, 0.0, 0.0, 0.0, 1e-12;
-
-    // Ratt << 1e-1, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 1e6, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 1e6, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 1e2, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 1e2, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 0.0, 1e2;
-
-
-
     double t0_att = 0.0;
     Eigen::Matrix<double,7,1> xhat_estimated;
-    // xhat_estimated << 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0; // bad initialization
-    xhat_estimated << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0; // q(w,x,y,z) in this order is the correct initialization
+    xhat_estimated << 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0; // bad initialization
+    // xhat_estimated << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0; // q(w,x,y,z) in this order is the correct initialization
     xhat_estimated.head<4>() /= xhat_estimated.head<4>().norm();
 
     state_estimator::AttitudeBiasXKF attitude(t0_att, xhat_estimated, P0, Q, Ratt, f_n, m_n, ki, kp);
@@ -270,24 +247,6 @@ int main(int argc, char** argv)
     Eigen::Matrix<double,6,6> Psf = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
     Eigen::Matrix<double,6,6> Qsf = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
     Eigen::Matrix<double,3,3> Rsf = Eigen::Matrix<double,3,3>::Identity() * 5e-17;
-
-    // Psf << 1e-10, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //        0.0, 1e-10, 0.0, 0.0, 0.0, 0.0,
-    //        0.0, 0.0, 1e-10, 0.0, 0.0, 0.0,
-    //        0.0, 0.0, 0.0, 1e-10, 0.0, 0.0,
-    //        0.0, 0.0, 0.0, 0.0, 1e-10, 0.0,
-    //        0.0, 0.0, 0.0, 0.0, 0.0, 1e-10;
-
-    // Qsf << 1e-10, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //        0.0, 1e-10, 0.0, 0.0, 0.0, 0.0,
-    //        0.0, 0.0, 1e-10, 0.0, 0.0, 0.0,
-    //        0.0, 0.0, 0.0, 1e-10, 0.0, 0.0,
-    //        0.0, 0.0, 0.0, 0.0, 1e-10, 0.0,
-    //        0.0, 0.0, 0.0, 0.0, 0.0, 1e-10;
-
-    // Rsf << 5e-12, 0.0, 0.0,
-    //        0.0, 5e-12, 0.0,
-    //        0.0, 0.0, 5e-12;
 
     state_estimator::KFSensorFusion kf(t0, x0, Psf, Qsf, Rsf, false, false);
 
