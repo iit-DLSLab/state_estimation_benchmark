@@ -126,6 +126,7 @@ int main(int argc, char** argv)
 
     const std::string out_att_csv = dataset_root + "/muse/attitude_estimate_muse.csv";
     const std::string out_lo_csv  = dataset_root + "/muse/leg_odometry.csv";
+    // const std::string out_fs_csv  = dataset_root + "/muse/fused_state.csv";
     const std::string out_fs_csv  = dataset_root + "/muse/fused_state_bad_init_ori.csv";
 
     std::cout << "MUSE OFFLINE (single executable)\n";
@@ -211,8 +212,8 @@ int main(int argc, char** argv)
     // -----------------------------
     // ATTITUDE PARAMETERS / INIT (verbatim)
     // -----------------------------
-    double ki = 0.02;
-    double kp = 10.0;
+    double ki = 0.02; // 0.05;
+    double kp = 10.0;// 5.0;
 
     Eigen::Matrix3d b_R_imu;
     Eigen::Quaterniond b_quat_imu;
@@ -228,6 +229,30 @@ int main(int argc, char** argv)
     Eigen::Matrix<double,6,6> P0 = Eigen::Matrix<double,6,6>::Identity() * 1e-12;
     Eigen::Matrix<double,6,6> Q = Eigen::Matrix<double,6,6>::Identity() * 1e-15;
     Eigen::Matrix<double,6,6> Ratt = Eigen::Matrix<double,6,6>::Identity() * 1e-6;
+    // Eigen::Matrix<double,6,6> P0   ; //= Eigen::Matrix<double,6,6>::Identity() * 1e-10;
+    // Eigen::Matrix<double,6,6> Q    ; //= Eigen::Matrix<double,6,6>::Identity() * 1e-10;
+    // Eigen::Matrix<double,6,6> Ratt ; //= Eigen::Matrix<double,6,6>::Identity() * 1e-4;
+
+    // P0 <<   1.0e-12, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 1.0e-12, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 1.0e-12, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 1.0e-12, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 1.0e-12, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-12;
+
+    // Q <<    1.0e-15, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 1.0e-15, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 1.0e-15, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 1.0e-15, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 1.0e-15, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-15;
+
+    // Ratt << 1.0e-8, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 1.0e-8, 0.0, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 1.0e-8, 0.0, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 1.0e-8, 0.0, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 1.0e-8, 0.0,
+    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-8;
 
     double t0_att = 0.0;
     Eigen::Matrix<double,7,1> xhat_estimated;
@@ -244,9 +269,27 @@ int main(int argc, char** argv)
     Eigen::Matrix<double,6,1> x0; x0.setZero();
 
     // Tune these (or read from YAML).
-    Eigen::Matrix<double,6,6> Psf = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
-    Eigen::Matrix<double,6,6> Qsf = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
-    Eigen::Matrix<double,3,3> Rsf = Eigen::Matrix<double,3,3>::Identity() * 5e-17;
+    Eigen::Matrix<double,6,6> Psf; // = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
+    Eigen::Matrix<double,6,6> Qsf; // = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
+    Eigen::Matrix<double,3,3> Rsf; // = Eigen::Matrix<double,3,3>::Identity() * 5e-17;
+
+    Psf << 1.0e-4, 0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 1.0e-12, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 1.0e-4, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 1.0e-4, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 1.0e-4, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-4;
+
+    Qsf <<  1.0e-9, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 1.0e-15, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 1.0e-9, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0e-9, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 1.0e-9, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-9;
+
+    Rsf <<  1.0e-11, 0.0, 0.0,
+            0.0, 1.0e-11, 0.0,
+            0.0, 0.0, 1.0e-11;
 
     state_estimator::KFSensorFusion kf(t0, x0, Psf, Qsf, Rsf, false, false);
 
@@ -275,7 +318,6 @@ int main(int argc, char** argv)
         auto frow = splitCSVLine(fline);
 
         try {
-            auto start = std::chrono::high_resolution_clock::now();
             const double t_abs =
                 has_t ? getColAsDouble(row, idx, "t")
                       : getColAsDouble(row, idx, "timestamp");
@@ -300,6 +342,8 @@ int main(int argc, char** argv)
             // parse feet row
             FeetKinRow fk = parseFeetKinRow(frow, fidx);
             (void)fk.t_abs; // we assume lockstep, but you can assert |fk.t_abs - t_abs| < eps
+
+            auto start = std::chrono::high_resolution_clock::now();
 
             if (first) {
                 t_begin_abs = t_abs;

@@ -1,6 +1,7 @@
 name: state_est_bench
 channels:
   - conda-forge
+  - defaults
 dependencies:
   # Toolchain & build
   - python=3.11
@@ -19,6 +20,10 @@ dependencies:
   - numpy
   - pandas
   - matplotlib
+  - scipy 
+  - pyproj
+  - proj
+  - contextily
 
   # Optional nice-to-haves (debugging/logging)
   - fmt

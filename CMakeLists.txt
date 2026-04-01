@@ -1,5 +1,5 @@
 add_subdirectory(common)
-add_subdirectory(data_preprocess)
+add_subdirectory(data_process)
 add_subdirectory(muse)
 add_subdirectory(iekf)
 add_subdirectory(invariant_smoother)

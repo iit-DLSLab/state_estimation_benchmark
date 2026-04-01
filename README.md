@@ -32,7 +32,7 @@ timestamp, px, py, pz, qx, qy, qz, vx, vy, vz
 ## Step 1 - Dataset sanity check
 Build and run the dataset inspection tool:
 ```
-cd data_preprocess
+cd data_process
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
@@ -110,15 +110,26 @@ Generated output:
 From the repository root, run:
 ```
 # MUSE attitude vs GT
-python3 data_preprocess/scripts/plot_muse_attitude_vs_gt.py
+python3 data_process/scripts/plot_muse_attitude_vs_gt.py
 
 # MUSE leg odometry velocity vs GT velocity
-python3 data_preprocess/scripts/plot_legodom_vs_gtvel.py
+python3 data_process/scripts/plot_legodom_vs_gtvel.py
 
 # Compare fused trajectories: MUSE vs IEKF vs Invariant Smoother vs GT
-python3 data_preprocess/scripts/plot_fused_vs_gt.py
+python3 data_process/scripts/plot_fused_vs_gt.py
 ```
 
 Note:
 - `plot_muse_attitude_vs_gt.py` and `plot_legodom_vs_gtvel.py` read `groundtruth.csv`.
 - `plot_fused_vs_gt.py` currently reads `anymal_state.csv` as GT.
+
+## One-command full pipeline
+From the repository root, you can run preprocessing + MUSE + IEKF + Invariant Smoother with one command:
+```
+./run_all_estimators.sh
+```
+
+Optional custom dataset root (relative to repository root):
+```
+./run_all_estimators.sh --dataset data/anymalD_grandtour
+```

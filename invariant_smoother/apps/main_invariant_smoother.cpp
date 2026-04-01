@@ -244,7 +244,8 @@ int main(int argc, char** argv)
     const std::string feet_csv   = dataset_root + "/feet_kinematics.csv";
 
     const std::string out_dir    = dataset_root + "/invariant_smoother";
-    const std::string out_csv    = out_dir + "/fused_state_bad_init_ori.csv";
+    const std::string out_csv    = out_dir + "/fused_state_ws5.csv";
+    // const std::string out_csv    = out_dir + "/fused_state_bad_init_ori.csv";
 
     std::cout << "Invariant Smoother (offline, using remapped inputs)\n"
               << "  Sensor: " << sensor_csv << "\n"
@@ -276,13 +277,14 @@ int main(int argc, char** argv)
     bool VCC = false;
     double cov_amplifier = 1;
 
-    int max_backpp_no = 1;
+    int max_backpp_no = 10;
     double backpp_rate = 0.5;
-    int max_it_no = 1;
+    int max_it_no = 10;
     double convergence_cond = 1e-3;
 
-    // double gyro_exp = -4, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;     // smooth
-    double gyro_exp = -8, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;
+    double gyro_exp = -4, acc_exp = -1, slip_exp = -1.3, contact_exp = -4, encoder_exp = -5;    // smooth
+    // double gyro_exp = -6, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -8; // come nella repo drcd
+    // double gyro_exp = -8, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;
     double bg_exp = -10, ba_exp = -10;
     double pri_ori_exp = -8, pri_vel_exp = -8, pri_pos_exp = -8;
     double pri_bg_exp = -10, pri_ba_exp = -10;
@@ -302,12 +304,12 @@ int main(int argc, char** argv)
     cov.cov_prior_bias_acc_diagonal    << std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp);
 
     Eigen::Matrix<double,16,1> x0;
-    x0 << 0.0,0.0,0.0,      // px py pz
-          0.0, 1.0, 0.0, 0.0,  // q(w,x,y,z) // bad initialization can cause convergence issues, especially in the orientation.
-        //   1.0,0.0,0.0,0.0,  // q(w,x,y,z) in this order is the correct initialization
-          0.0,0.0,0.0,      // vx, vy, vz
-          0.0,0.0,0.0,      // bgx, bgy, bgz
-          0.0,0.0,0.0;      // bax, bay, baz
+    x0 << 0.0,0.0,0.0,          // px py pz
+        //   0.0, 1.0, 0.0, 0.0,   // q(w,x,y,z) // bad initialization can cause convergence issues, especially in the orientation.
+          1.0,0.0,0.0,0.0,   // q(w,x,y,z) in this order is the correct initialization
+          0.0,0.0,0.0,          // vx, vy, vz
+          0.0,0.0,0.0,          // bgx, bgy, bgz
+          0.0,0.0,0.0;          // bax, bay, baz
 
     estimator_IS.estimator_common_struct_.leg_no = 4;
     estimator_IS.Optimization_Epsilon = convergence_cond;
