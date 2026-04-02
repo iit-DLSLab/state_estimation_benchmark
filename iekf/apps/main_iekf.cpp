@@ -1,12 +1,8 @@
-// Copyright (c) 2023. Dynamic Robot Control and Design Laboratory , KAIST
-//
-// Any unauthorized copying, alteration, distribution, transmission,
-// performance, display or use of this material is prohibited.
-//
-// All rights reserved.
-//
-// Modified by Junny on 2023.
-// Readapted for this project by Ylenia Nistico in 2026.
+/* 
+    Offline Invariant Extended Kalman Filter (IEKF) implementation for the Anymal D Grand Tour dataset.
+    Original code of the IEKF: https://github.com/RossHartley/invariant-ekf
+    This main is readapted from: https://github.com/DrcdKAIST/invariant_smoother
+*/
 
 #include <array>
 #include <algorithm>
@@ -169,16 +165,16 @@ static void fillIEKFInputs(
     // To align to the IEKF order: RR, RL, FL, FR (as per convention of the IEKF in EstimatorCommonStruct).
     // RR=RH, RL=LH, FL=LF, FR=RF
     const char* JO_POS[12] = {
-        "joint_pos_RH_HAA","joint_pos_RH_HFE","joint_pos_RH_KFE", // RR
-        "joint_pos_LH_HAA","joint_pos_LH_HFE","joint_pos_LH_KFE", // RL
-        "joint_pos_RF_HAA","joint_pos_RF_HFE","joint_pos_RF_KFE", // FR
-        "joint_pos_LF_HAA","joint_pos_LF_HFE","joint_pos_LF_KFE" // FL
+        "joint_pos_RH_HAA","joint_pos_RH_HFE","joint_pos_RH_KFE",   // RR
+        "joint_pos_LH_HAA","joint_pos_LH_HFE","joint_pos_LH_KFE",   // RL
+        "joint_pos_RF_HAA","joint_pos_RF_HFE","joint_pos_RF_KFE",   // FR
+        "joint_pos_LF_HAA","joint_pos_LF_HFE","joint_pos_LF_KFE"    // FL
     };
     const char* JO_VEL[12] = {
-        "joint_vel_RH_HAA","joint_vel_RH_HFE","joint_vel_RH_KFE", // RR
-        "joint_vel_LH_HAA","joint_vel_LH_HFE","joint_vel_LH_KFE", // RL
-        "joint_vel_RF_HAA","joint_vel_RF_HFE","joint_vel_RF_KFE", // FR
-        "joint_vel_LF_HAA","joint_vel_LF_HFE","joint_vel_LF_KFE", // FL
+        "joint_vel_RH_HAA","joint_vel_RH_HFE","joint_vel_RH_KFE",   // RR
+        "joint_vel_LH_HAA","joint_vel_LH_HFE","joint_vel_LH_KFE",   // RL
+        "joint_vel_RF_HAA","joint_vel_RF_HFE","joint_vel_RF_KFE",   // FR
+        "joint_vel_LF_HAA","joint_vel_LF_HFE","joint_vel_LF_KFE"    // FL
     };
 
     // contacts: RH, LH, RF, LF
@@ -244,8 +240,7 @@ int main(int argc, char** argv)
     const std::string feet_csv   = dataset_root + "/feet_kinematics.csv";
 
     const std::string out_dir    = dataset_root + "/iekf";
-    // const std::string out_csv    = out_dir + "/fused_state.csv";
-    const std::string out_csv    = out_dir + "/fused_state_bad_init_ori.csv";
+    const std::string out_csv    = out_dir + "/fused_state.csv";
 
     std::cout << "Invariant Extended Kalman Filter (offline, using remapped inputs)\n"
               << "  Sensor: " << sensor_csv << "\n"
@@ -303,8 +298,8 @@ int main(int argc, char** argv)
 
     Eigen::Matrix<double,16,1> x0;
     x0 << 0.0,0.0,0.0,      // px py pz
-          0.0, 1.0, 0.0, 0.0,  // q(w,x,y,z) // bad initialization can cause convergence issues, especially in the orientation.
-        //   1.0,0.0,0.0,0.0,  // q(w,x,y,z) in this order is the correct initialization
+        //   0.0, 1.0, 0.0, 0.0,  // q(w,x,y,z) // bad initialization can cause convergence issues, especially in the orientation.
+          1.0,0.0,0.0,0.0,  // q(w,x,y,z) in this order is the correct initialization
           0.0,0.0,0.0,      // vx, vy, vz
           0.0,0.0,0.0,      // bgx, bgy, bgz
           0.0,0.0,0.0;      // bax, bay, baz
@@ -312,15 +307,12 @@ int main(int argc, char** argv)
     estimator_IEKF.estimator_common_struct_.leg_no = 4;
     estimator_IEKF.Optimization_Epsilon = convergence_cond;
     estimator_IEKF.Max_Iteration = max_it_no;
-    // estimator_IEKF.Max_backpropagate_no = max_backpp_no;
-    // estimator_IEKF.backppgn_rate = backpp_rate;
     estimator_IEKF.NUM_OF_TRASH_DATA = starting_point;
     estimator_IEKF.slip_rejection_mode = SR;
     estimator_IEKF.slip_threshold = slip_thr;
     estimator_IEKF.variable_contact_cov_mode = VCC;
     estimator_IEKF.cov_amplifier = cov_amplifier;
 
-    // estimator_IEKF.Retractions_All_flag = false;
     estimator_IEKF.Initialize(dt_init, cov, x0);
 
     double t_prev = -1.0;
@@ -334,9 +326,6 @@ int main(int argc, char** argv)
 
     std::vector<ROBOT_STATES> state_history;
     std::vector<double> t_abs_history;
-
-    // state_history.reserve(200000);
-    // t_abs_history.reserve(200000);
 
     std::size_t n = 0;
     std::size_t skipped = 0;
@@ -359,7 +348,7 @@ int main(int argc, char** argv)
         if (first) {
             t_prev = t_current;
             first = false;
-            // continue;   // salta primo step
+            // continue;   
         }
 
         double dt = t_current - t_prev;

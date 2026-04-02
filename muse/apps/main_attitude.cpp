@@ -1,3 +1,9 @@
+/* 
+    Offline MUSE implementation for the Anymal D Grand Tour dataset.
+    Original code of MUSE: https://github.com/iit-DLSLab/muse
+*/
+
+
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
