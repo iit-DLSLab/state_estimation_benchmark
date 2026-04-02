@@ -113,35 +113,19 @@ def main() -> None:
 
     muse_path = root / "muse" / "fused_state.csv"
     iekf_path = root / "iekf" / "fused_state.csv"
-    is_path = root / "invariant_smoother" / "fused_state_ws15.csv"
-    is_ws1_path = root / "invariant_smoother" / "fused_state_ws1.csv"
-    is_ws2_path = root / "invariant_smoother" / "fused_state_ws2.csv"
-    is_ws3_path = root / "invariant_smoother" / "fused_state_ws3.csv"
-    is_ws4_path = root / "invariant_smoother" / "fused_state_ws4.csv"
-    is_ws5_path = root / "invariant_smoother" / "fused_state_ws5.csv"
+    is_path = root / "invariant_smoother" / "fused_state.csv"
 
     # Outputs (requested names + new anymal_state output)
     gt_out = outdir / "groundtruth_traj_tum.csv"
-    anymal_state_out = outdir / "anymal_state_traj_tum.csv"
 
     muse_out = outdir / "muse_traj_tum.csv"
     iekf_out = outdir / "iekf_traj_tum.csv"
-    is_out = outdir / "is_traj_tum_ws15.csv"
-    is_ws1_out = outdir / "is_traj_tum_ws1.csv"
-    is_ws2_out = outdir / "is_traj_tum_ws2.csv"
-    is_ws3_out = outdir / "is_traj_tum_ws3.csv"
-    is_ws4_out = outdir / "is_traj_tum_ws4.csv"
-    is_ws5_out = outdir / "is_traj_tum_ws5.csv"
+    is_out = outdir / "is_traj_tum.csv"
 
     # Convert + save
     if not gt_path.exists():
         raise FileNotFoundError(f"Missing: {gt_path}")
     save_tum_like(load_groundtruth(gt_path), gt_out)
-
-    if anymal_state_path.exists():
-        save_tum_like(load_anymal_state(anymal_state_path), anymal_state_out)
-    else:
-        print(f"[SKIP] not found: {anymal_state_path}")
 
     if muse_path.exists():
         save_tum_like(load_muse_like(muse_path), muse_out)
@@ -158,43 +142,33 @@ def main() -> None:
     else:
         print(f"[SKIP] not found: {is_path}")
 
-    if is_ws1_path.exists():
-        save_tum_like(load_muse_like(is_ws1_path), is_ws1_out)
-    else:
-        print(f"[SKIP] not found: {is_ws1_path}")
+    print("\nATE [m] (evo):")
+    print(f"  evo_ape tum {gt_out} {muse_out} -a")
+    print(f"  evo_ape tum {gt_out} {iekf_out} -a")
+    print(f"  evo_ape tum {gt_out} {is_out}   -a")
 
-    if is_ws2_path.exists():
-        save_tum_like(load_muse_like(is_ws2_path), is_ws2_out)
-    else:
-        print(f"[SKIP] not found: {is_ws2_path}")
+    print("\nRPE [m] (delta=1 m)):")
+    print(f"  evo_rpe tum {gt_out} {muse_out} --delta 1 --delta_unit m --pose_relation point_distance -a")
+    print(f"  evo_rpe tum {gt_out} {iekf_out} --delta 1 --delta_unit m --pose_relation point_distance -a")
+    print(f"  evo_rpe tum {gt_out} {is_out}   --delta 1 --delta_unit m --pose_relation point_distance -a")
 
-    if is_ws3_path.exists():
-        save_tum_like(load_muse_like(is_ws3_path), is_ws3_out)
-    else:
-        print(f"[SKIP] not found: {is_ws3_path}")
+    print("\nRPE [m] (delta=1 f)):")
+    print(f"  evo_rpe tum {gt_out} {muse_out} --delta 1 --delta_unit f --pose_relation point_distance -a")
+    print(f"  evo_rpe tum {gt_out} {iekf_out} --delta 1 --delta_unit f --pose_relation point_distance -a")
+    print(f"  evo_rpe tum {gt_out} {is_out}   --delta 1 --delta_unit f --pose_relation point_distance -a")
 
-    if is_ws4_path.exists():
-        save_tum_like(load_muse_like(is_ws4_path), is_ws4_out)
-    else:
-        print(f"[SKIP] not found: {is_ws4_path}")
+    print("\nRPE [deg] (delta=1 m)):")
+    print(f"  evo_rpe tum {gt_out} {muse_out} --pose_relation angle_deg --delta 1 --delta_unit m --pose_relation rot_part -a")
+    print(f"  evo_rpe tum {gt_out} {iekf_out} --pose_relation angle_deg --delta 1 --delta_unit m --pose_relation rot_part -a")
+    print(f"  evo_rpe tum {gt_out} {is_out}   --pose_relation angle_deg --delta 1 --delta_unit m --pose_relation rot_part -a")
 
-    if is_ws5_path.exists():
-        save_tum_like(load_muse_like(is_ws5_path), is_ws5_out)
-    else:
-        print(f"[SKIP] not found: {is_ws5_path}")
+    print("\nRPE [deg] (delta=1 f)):")
+    print(f"  evo_rpe tum {gt_out} {muse_out} --pose_relation angle_deg --delta 1 --delta_unit f --pose_relation rot_part -a")
+    print(f"  evo_rpe tum {gt_out} {iekf_out} --pose_relation angle_deg --delta 1 --delta_unit f --pose_relation rot_part -a")
+    print(f"  evo_rpe tum {gt_out} {is_out}   --pose_relation angle_deg --delta 1 --delta_unit f --pose_relation rot_part -a")
 
-    print("\nExamples (evo):")
-    print(f"  evo_ape tum {gt_out} {muse_out} -a --plot")
-    print(f"  evo_ape tum {gt_out} {iekf_out} -a --plot")
-    print(f"  evo_ape tum {gt_out} {is_out} -a --plot")
-    print(f"  evo_ape tum {gt_out} {anymal_state_out} -a --plot")
-
-    print("\nIf you want RPE:")
-    print(f"  evo_rpe tum {gt_out} {muse_out} -a --plot")
-    print(f"  evo_rpe tum {gt_out} {iekf_out} -a --plot")
-    print(f"  evo_rpe tum {gt_out} {is_out} -a --plot")
-    print(f"  evo_rpe tum {gt_out} {anymal_state_out} -a --plot")
-
+    print("\nVelocity RMSE [m/s]:")
+    print(f"  python3 ../../data_process/scripts/compute_vel_rmse.py ")
 
 if __name__ == "__main__":
     main()

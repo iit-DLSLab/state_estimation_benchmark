@@ -149,10 +149,10 @@ def main() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     dataset_dir = repo_root / DATASET_DIR
 
-    gt_path = dataset_dir / "groundtruth_rotated_vel.csv"
+    gt_path = dataset_dir / "groundtruth_vel.csv"
     muse_path = dataset_dir / "muse/fused_state.csv"
     iekf_path = dataset_dir / "iekf/fused_state.csv"
-    inv_smoother_path = dataset_dir / "invariant_smoother/fused_state_ws3.csv"
+    inv_smoother_path = dataset_dir / "invariant_smoother/fused_state.csv"
 
     evaluate(gt_path, muse_path, "MUSE", ROT_MUSE)
     evaluate(gt_path, iekf_path, "IEKF", ROT_IEKF)
