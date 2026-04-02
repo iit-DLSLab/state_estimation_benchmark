@@ -297,12 +297,11 @@ int main(int argc, char** argv)
     cov.cov_prior_bias_acc_diagonal    << std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp), std::pow(10, pri_ba_exp);
 
     Eigen::Matrix<double,16,1> x0;
-    x0 << 0.0,0.0,0.0,      // px py pz
-        //   0.0, 1.0, 0.0, 0.0,  // q(w,x,y,z) // bad initialization can cause convergence issues, especially in the orientation.
-          1.0,0.0,0.0,0.0,  // q(w,x,y,z) in this order is the correct initialization
-          0.0,0.0,0.0,      // vx, vy, vz
-          0.0,0.0,0.0,      // bgx, bgy, bgz
-          0.0,0.0,0.0;      // bax, bay, baz
+    x0 << 0.0,0.0,0.0,          // px py pz
+          1.0,0.0,0.0,0.0,      // q(w,x,y,z) 
+          0.0,0.0,0.0,          // vx, vy, vz
+          0.0,0.0,0.0,          // bgx, bgy, bgz
+          0.0,0.0,0.0;          // bax, bay, baz
 
     estimator_IEKF.estimator_common_struct_.leg_no = 4;
     estimator_IEKF.Optimization_Epsilon = convergence_cond;

@@ -1,12 +1,7 @@
-// Copyright (c) 2023. Dynamic Robot Control and Design Laboratory , KAIST
-//
-// Any unauthorized copying, alteration, distribution, transmission,
-// performance, display or use of this material is prohibited.
-//
-// All rights reserved.
-//
-// Modified by Junny on 2023.
-// Readapted for this project by Ylenia Nistico in 2026.
+/* 
+    Offline Invariant Smoother implementation for the Anymal D Grand Tour dataset.
+    Original code of the Invariant Smoother: https://github.com/DrcdKAIST/invariant_smoother   
+*/
 
 #include <array>
 #include <algorithm>
@@ -137,8 +132,8 @@ private:
 };
 
 // -----------------------------
-// Remap: from (sensor row + feet row) -> structure IS
-// Original main uses:
+//  Remap: from (sensor row + feet row) -> structure IS
+//  Original main uses:
 //  Sensor_(0:2)=gyro, Sensor_(3:5)=acc, Sensor_(6:17)=jnt_pos, Sensor_(18:29)=jnt_vel
 //  Contact_ (4x1 bool)
 //  forkin_set_.forkin_position (size 4) and forkin_set_.forkin_jacobian (size 4)
@@ -169,16 +164,16 @@ static void fillInvariantSmootherInputs(
     // To align to the smoother order: RR, RL, FL, FR (as per convention of the smoother in EstimatorCommonStruct).
     // RR=RH, RL=LH, FL=LF, FR=RF
     const char* JO_POS[12] = {
-        "joint_pos_RH_HAA","joint_pos_RH_HFE","joint_pos_RH_KFE", // RR
-        "joint_pos_LH_HAA","joint_pos_LH_HFE","joint_pos_LH_KFE", // RL
-        "joint_pos_RF_HAA","joint_pos_RF_HFE","joint_pos_RF_KFE", // FR
-        "joint_pos_LF_HAA","joint_pos_LF_HFE","joint_pos_LF_KFE" // FL
+        "joint_pos_RH_HAA","joint_pos_RH_HFE","joint_pos_RH_KFE",  // RR
+        "joint_pos_LH_HAA","joint_pos_LH_HFE","joint_pos_LH_KFE",  // RL
+        "joint_pos_RF_HAA","joint_pos_RF_HFE","joint_pos_RF_KFE",  // FR
+        "joint_pos_LF_HAA","joint_pos_LF_HFE","joint_pos_LF_KFE"   // FL
     };
     const char* JO_VEL[12] = {
-        "joint_vel_RH_HAA","joint_vel_RH_HFE","joint_vel_RH_KFE", // RR
-        "joint_vel_LH_HAA","joint_vel_LH_HFE","joint_vel_LH_KFE", // RL
-        "joint_vel_RF_HAA","joint_vel_RF_HFE","joint_vel_RF_KFE", // FR
-        "joint_vel_LF_HAA","joint_vel_LF_HFE","joint_vel_LF_KFE", // FL
+        "joint_vel_RH_HAA","joint_vel_RH_HFE","joint_vel_RH_KFE",  // RR
+        "joint_vel_LH_HAA","joint_vel_LH_HFE","joint_vel_LH_KFE",  // RL
+        "joint_vel_RF_HAA","joint_vel_RF_HFE","joint_vel_RF_KFE",  // FR
+        "joint_vel_LF_HAA","joint_vel_LF_HFE","joint_vel_LF_KFE",  // FL
     };
 
     // contacts: RH, LH, RF, LF
@@ -244,8 +239,7 @@ int main(int argc, char** argv)
     const std::string feet_csv   = dataset_root + "/feet_kinematics.csv";
 
     const std::string out_dir    = dataset_root + "/invariant_smoother";
-    const std::string out_csv    = out_dir + "/fused_state_ws5.csv";
-    // const std::string out_csv    = out_dir + "/fused_state_bad_init_ori.csv";
+    const std::string out_csv    = out_dir + "/fused_state.csv";
 
     std::cout << "Invariant Smoother (offline, using remapped inputs)\n"
               << "  Sensor: " << sensor_csv << "\n"
@@ -283,8 +277,6 @@ int main(int argc, char** argv)
     double convergence_cond = 1e-3;
 
     double gyro_exp = -4, acc_exp = -1, slip_exp = -1.3, contact_exp = -4, encoder_exp = -5;    // smooth
-    // double gyro_exp = -6, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -8; // come nella repo drcd
-    // double gyro_exp = -8, acc_exp = -2, slip_exp = -1.3, contact_exp = -4, encoder_exp = -6;
     double bg_exp = -10, ba_exp = -10;
     double pri_ori_exp = -8, pri_vel_exp = -8, pri_pos_exp = -8;
     double pri_bg_exp = -10, pri_ba_exp = -10;
@@ -305,8 +297,7 @@ int main(int argc, char** argv)
 
     Eigen::Matrix<double,16,1> x0;
     x0 << 0.0,0.0,0.0,          // px py pz
-        //   0.0, 1.0, 0.0, 0.0,   // q(w,x,y,z) // bad initialization can cause convergence issues, especially in the orientation.
-          1.0,0.0,0.0,0.0,   // q(w,x,y,z) in this order is the correct initialization
+          1.0,0.0,0.0,0.0,      // q(w,x,y,z) 
           0.0,0.0,0.0,          // vx, vy, vz
           0.0,0.0,0.0,          // bgx, bgy, bgz
           0.0,0.0,0.0;          // bax, bay, baz
@@ -362,7 +353,7 @@ int main(int argc, char** argv)
         if (first) {
             t_prev = t_current;
             first = false;
-            // continue;   // salta primo step
+            // continue;
         }
 
         double dt = t_current - t_prev;
