@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-plots.py — robust plotting for GT vs MUSE / IEKF / IS
+plots.py — plotting for GT vs MUSE / IEKF / IS
 
-Fixes vs your original:
+Fixes:
 - Quaternion resampling uses SLERP (no component-wise interp).
 - Time-shifts are applied first, then we crop to the common time window across ALL signals,
   so SLERP never goes out of range.
@@ -25,14 +25,9 @@ import os
 DATASET_ROOT = "data/anymalD_grandtour"
 GT_FILE       = f"{DATASET_ROOT}/groundtruth_rotated_vel.csv"
 
-FUSED_FILE    = f"{DATASET_ROOT}/muse/fused_state.csv"
+MUSE_FILE    = f"{DATASET_ROOT}/muse/fused_state.csv"
 IEKF_FILE     = f"{DATASET_ROOT}/iekf/fused_state.csv"
 SMOOTHER_FILE = f"{DATASET_ROOT}/invariant_smoother/fused_state.csv"
-
-# FUSED_FILE    = f"{DATASET_ROOT}/muse/fused_state_bad_init_ori.csv"
-# IEKF_FILE     = f"{DATASET_ROOT}/iekf/fused_state_bad_init_ori.csv"
-# SMOOTHER_FILE = f"{DATASET_ROOT}/invariant_smoother/fused_state_bad_init_ori.csv"
-
 
 # =======================
 # Umeyama alignment (est -> GT)
@@ -201,7 +196,7 @@ def common_time_window(*time_vectors):
 def main():
     # --- Load
     gt = pd.read_csv(GT_FILE)
-    fused = pd.read_csv(FUSED_FILE)         # MUSE
+    muse = pd.read_csv(MUSE_FILE)          # MUSE
     smoother = pd.read_csv(SMOOTHER_FILE)   # IS
     iekf = pd.read_csv(IEKF_FILE)           # IEKF
 
@@ -209,8 +204,8 @@ def main():
     t_gt = gt["t"].to_numpy(float)
     t_gt = t_gt - t_gt[0]
 
-    t_fu = fused["t_abs"].to_numpy(float)
-    t_fu = t_fu - t_fu[0]
+    t_muse = muse["t_abs"].to_numpy(float)
+    t_muse = t_muse - t_muse[0]
 
     t_sm = smoother["t_abs"].to_numpy(float)
     t_sm = t_sm - t_sm[0]
@@ -224,9 +219,9 @@ def main():
     q_gt = gt[["qx", "qy", "qz", "qw"]].to_numpy(float)
 
     # --- Estimator signals
-    p_fu = fused[["px", "py", "pz"]].to_numpy(float)
-    v_fu = fused[["vx", "vy", "vz"]].to_numpy(float)
-    q_fu = fused[["qx", "qy", "qz", "qw"]].to_numpy(float)
+    p_muse = muse[["px", "py", "pz"]].to_numpy(float)
+    v_muse = muse[["vx", "vy", "vz"]].to_numpy(float)
+    q_muse = muse[["qx", "qy", "qz", "qw"]].to_numpy(float)
 
     p_sm = smoother[["px", "py", "pz"]].to_numpy(float)
     v_sm = smoother[["vx", "vy", "vz"]].to_numpy(float)
@@ -237,34 +232,30 @@ def main():
     q_ik = iekf[["qx", "qy", "qz", "qw"]].to_numpy(float)
 
     # --- Apply spatial alignment into GT frame
-    p_fu, v_fu, q_fu = apply_alignment(p_fu, v_fu, q_fu, ALIGN["muse"]["R"], ALIGN["muse"]["t"])
+    p_muse, v_muse, q_muse = apply_alignment(p_muse, v_muse, q_muse, ALIGN["muse"]["R"], ALIGN["muse"]["t"])
     p_sm, v_sm, q_sm = apply_alignment(p_sm, v_sm, q_sm, ALIGN["is"]["R"], ALIGN["is"]["t"])
     p_ik, v_ik, q_ik = apply_alignment(p_ik, v_ik, q_ik, ALIGN["iekf"]["R"], ALIGN["iekf"]["t"])
 
     # --- Estimate time shifts (using speed magnitude AFTER spatial alignment)
     s_gt = np.linalg.norm(v_gt, axis=1)
-    s_fu = np.linalg.norm(v_fu, axis=1)
+    s_muse = np.linalg.norm(v_muse, axis=1)
     s_sm = np.linalg.norm(v_sm, axis=1)
     s_ik = np.linalg.norm(v_ik, axis=1)
 
-    tau_fu, rmse_fu = estimate_time_shift_rmse(t_gt, s_gt, t_fu, s_fu)
+    tau_muse, rmse_muse = estimate_time_shift_rmse(t_gt, s_gt, t_muse, s_muse)
     tau_sm, rmse_sm = estimate_time_shift_rmse(t_gt, s_gt, t_sm, s_sm)
     tau_ik, rmse_ik = estimate_time_shift_rmse(t_gt, s_gt, t_ik, s_ik)
 
-    # print(f"[time-align] MUSE tau={tau_fu:+.4f}s, RMSE={rmse_fu:.4f}")
-    # print(f"[time-align] IS   tau={tau_sm:+.4f}s, RMSE={rmse_sm:.4f}")
-    # print(f"[time-align] IEKF tau={tau_ik:+.4f}s, RMSE={rmse_ik:.4f}")
-
     # --- Apply time shifts
-    t_fu = t_fu + tau_fu
+    t_muse = t_muse + tau_muse
     t_sm = t_sm + tau_sm
     t_ik = t_ik + tau_ik
 
     # --- Common time window across GT + all estimators (after shifts)
-    t_min, t_max = common_time_window(t_gt, t_fu, t_sm, t_ik)
+    t_min, t_max = common_time_window(t_gt, t_muse, t_sm, t_ik)
 
     # --- Define common timeline as cropped MUSE timeline
-    t_common, p_fu, v_fu, q_fu = crop_by_time(t_fu, p_fu, v_fu, q_fu, t_min=t_min, t_max=t_max)
+    t_common, p_muse, v_muse, q_muse = crop_by_time(t_muse, p_muse, v_muse, q_muse, t_min=t_min, t_max=t_max)
 
     # --- Resample others onto common timeline
     p_gt_i = interp_vec(t_gt, p_gt, t_common)
@@ -281,24 +272,24 @@ def main():
 
     # Normalize quats (safety)
     q_gt_i = q_gt_i / np.linalg.norm(q_gt_i, axis=1, keepdims=True)
-    q_fu   = q_fu   / np.linalg.norm(q_fu,   axis=1, keepdims=True)
+    q_muse = q_muse / np.linalg.norm(q_muse, axis=1, keepdims=True)
     q_sm_i = q_sm_i / np.linalg.norm(q_sm_i, axis=1, keepdims=True)
     q_ik_i = q_ik_i / np.linalg.norm(q_ik_i, axis=1, keepdims=True)
 
     # Sign-consistency for clean plots
-    q_fu   = align_quat_sign(q_gt_i, q_fu)
-    q_gt_i = align_quat_sign(q_fu,   q_gt_i)
+    q_muse = align_quat_sign(q_gt_i, q_muse)
+    q_gt_i = align_quat_sign(q_muse, q_gt_i)
     q_sm_i = align_quat_sign(q_gt_i, q_sm_i)
     q_ik_i = align_quat_sign(q_gt_i, q_ik_i)
 
     # --- Euler angles
     rpy_gt = R.from_quat(q_gt_i).as_euler("xyz", degrees=True)
-    rpy_fu = R.from_quat(q_fu).as_euler("xyz", degrees=True)
+    rpy_muse = R.from_quat(q_muse).as_euler("xyz", degrees=True)
     rpy_sm = R.from_quat(q_sm_i).as_euler("xyz", degrees=True)
     rpy_ik = R.from_quat(q_ik_i).as_euler("xyz", degrees=True)
 
     # Optional unwrap (often helps readability; comment out if you prefer raw wrap)
-    for arr in (rpy_gt, rpy_fu, rpy_sm, rpy_ik):
+    for arr in (rpy_gt, rpy_muse, rpy_sm, rpy_ik):
         arr[:, 0] = unwrap_deg(arr[:, 0])  # roll
         arr[:, 1] = unwrap_deg(arr[:, 1])  # pitch
         arr[:, 2] = unwrap_deg(arr[:, 2])  # yaw
@@ -308,142 +299,99 @@ def main():
     # =======================
     labels = ["x", "y", "z"]
 
-    # # Position
-    # fig1, ax1 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
-    # for i in range(3):
-    #     ax1[i].plot(t_common, p_gt_i[:, i] - p_gt_i[0, i], linestyle="--", label="GT", linewidth=2.0)
-    #     ax1[i].plot(t_common, p_fu[:, i]   - p_fu[0, i], label="MUSE", linewidth=2.0)
-    #     ax1[i].plot(t_common, p_ik_i[:, i] - p_ik_i[0, i], label="IEKF", linewidth=2.0)
-    #     ax1[i].plot(t_common, p_sm_i[:, i] - p_sm_i[0, i], linestyle=":", label="IS", linewidth=4.0)
-    #     ax1[i].set_ylabel(rf"$p_{{{labels[i]}}}$ [m]", fontsize=30)
-    #     if i == 0:
-    #         ax1[i].legend(fontsize=25, loc="lower right", ncol=4)
-    #     ax1[i].grid(True, color='gray', alpha=0.3)
-    #     ax1[i].set_xlim(t_common[0], t_common[-1])
-    #     ax1[i].set_ylim(-80, 130)
-    #     ax1[i].tick_params(axis='both', labelsize=30)
-    # ax1[-1].set_xlabel("Time [s]", fontsize=30)
-    # ax1[0].set_title("Position", fontsize=30)
-    # plt.tight_layout()
+    # Position
+    fig1, ax1 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
+    for i in range(3):
+        ax1[i].plot(t_common, p_gt_i[:, i] - p_gt_i[0, i], linestyle="--", label="GT", linewidth=2.0)
+        ax1[i].plot(t_common, p_muse[:, i] - p_muse[0, i], label="MUSE", linewidth=2.0)
+        ax1[i].plot(t_common, p_ik_i[:, i] - p_ik_i[0, i], label="IEKF", linewidth=2.0)
+        ax1[i].plot(t_common, p_sm_i[:, i] - p_sm_i[0, i], linestyle=":", label="IS", linewidth=4.0)
+        ax1[i].set_ylabel(rf"$p_{{{labels[i]}}}$ [m]", fontsize=30)
+        if i == 0:
+            ax1[i].legend(fontsize=25, loc="lower right", ncol=4)
+        ax1[i].grid(True, color='gray', alpha=0.3)
+        ax1[i].set_xlim(t_common[0], t_common[-1])
+        ax1[i].set_ylim(-80, 130)
+        ax1[i].tick_params(axis='both', labelsize=30)
+    ax1[-1].set_xlabel("Time [s]", fontsize=30)
+    ax1[0].set_title("Position", fontsize=30)
+    plt.tight_layout()
 
-    # # Velocity
-    # fig2, ax2 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
-    # for i in range(3):
-    #     ax2[i].plot(t_common, v_gt_i[:, i], linestyle="--", label="GT", linewidth=2.0)
-    #     ax2[i].plot(t_common, v_fu[:, i], label="MUSE", linewidth=2.0)
-    #     ax2[i].plot(t_common, v_ik_i[:, i], label="IEKF", linewidth=2.0)
-    #     ax2[i].plot(t_common, v_sm_i[:, i], linestyle=":", label="IS", linewidth=1.0)
-    #     ax2[i].set_ylabel(rf"$v_{{{labels[i]}}}$ [m/s]", fontsize=20)
-    #     if i == 2:
-    #         ax2[i].legend(fontsize=20, loc="upper left", ncol=4)
-    #     ax2[i].grid(True, color='gray', alpha=0.3)
-    #     ax2[i].set_xlim(t_common[0], t_common[-1])
-    #     ax2[i].set_ylim(-1.5, 1.5)
-    #     ax2[i].axvspan(50.0, 60.0, alpha=0.2, color='yellow')
-    #     ax2[i].tick_params(axis='both', labelsize=20)
-    # ax2[-1].set_xlabel("Time [s]", fontsize=20)
-    # ax2[0].set_title("Linear Velocity", fontsize=20)
-    # plt.tight_layout()
+    # Velocity
+    fig2, ax2 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
+    for i in range(3):
+        ax2[i].plot(t_common, v_gt_i[:, i], linestyle="--", label="GT", linewidth=2.0)
+        ax2[i].plot(t_common, v_muse[:, i], label="MUSE", linewidth=2.0)
+        ax2[i].plot(t_common, v_ik_i[:, i], label="IEKF", linewidth=2.0)
+        ax2[i].plot(t_common, v_sm_i[:, i], linestyle=":", label="IS", linewidth=1.0)
+        ax2[i].set_ylabel(rf"$v_{{{labels[i]}}}$ [m/s]", fontsize=20)
+        if i == 2:
+            ax2[i].legend(fontsize=20, loc="upper left", ncol=4)
+        ax2[i].grid(True, color='gray', alpha=0.3)
+        ax2[i].set_xlim(t_common[0], t_common[-1])
+        ax2[i].set_ylim(-1.5, 1.5)
+        ax2[i].axvspan(50.0, 60.0, alpha=0.2, color='yellow')
+        ax2[i].tick_params(axis='both', labelsize=20)
+    ax2[-1].set_xlabel("Time [s]", fontsize=20)
+    ax2[0].set_title("Linear Velocity", fontsize=20)
+    plt.tight_layout()
 
-    # # Velocity (zoomed region)
-    # zoom_t_min = 50.0
-    # zoom_t_max = 60.0
-    # mask_zoom = (t_common >= zoom_t_min) & (t_common <= zoom_t_max)
+    # Velocity (zoomed region)
+    zoom_t_min = 50.0
+    zoom_t_max = 60.0
+    mask_zoom = (t_common >= zoom_t_min) & (t_common <= zoom_t_max)
     
-    # fig2_zoom, ax2_zoom = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
-    # for i in range(3):
-    #     ax2_zoom[i].plot(t_common[mask_zoom], v_gt_i[mask_zoom, i], linestyle="--", label="GT", linewidth=2.0)
-    #     ax2_zoom[i].plot(t_common[mask_zoom], v_fu[mask_zoom, i], label="MUSE", linewidth=2.0)
-    #     ax2_zoom[i].plot(t_common[mask_zoom], v_ik_i[mask_zoom, i], label="IEKF", linewidth=2.0)
-    #     ax2_zoom[i].plot(t_common[mask_zoom], v_sm_i[mask_zoom, i], linestyle=":", label="IS", linewidth=1.0)
-    #     ax2_zoom[i].set_ylabel(rf"$v_{{{labels[i]}}}$ [m/s]", fontsize=20)
-    #     if i == 2:
-    #         ax2_zoom[i].legend(fontsize=20, loc="upper left", ncol=4)
-    #     ax2_zoom[i].grid(True, color='gray', alpha=0.3)
-    #     ax2_zoom[i].set_xlim(zoom_t_min, zoom_t_max)
-    #     ylims = [(0.25, 1.35), (-1.2, 0.3), (-0.2, 0.45)]
-    #     ax2_zoom[i].set_ylim(ylims[i])
-    #     ax2_zoom[i].tick_params(axis='both', labelsize=20)
-    # ax2_zoom[-1].set_xlabel("Time [s]", fontsize=20)
-    # ax2_zoom[0].set_title(f"Linear Velocity (zoomed: {zoom_t_min:.1f}–{zoom_t_max:.1f} s)", fontsize=20)
-    # plt.tight_layout()
+    fig2_zoom, ax2_zoom = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
+    for i in range(3):
+        ax2_zoom[i].plot(t_common[mask_zoom], v_gt_i[mask_zoom, i], linestyle="--", label="GT", linewidth=2.0)
+        ax2_zoom[i].plot(t_common[mask_zoom], v_muse[mask_zoom, i], label="MUSE", linewidth=2.0)
+        ax2_zoom[i].plot(t_common[mask_zoom], v_ik_i[mask_zoom, i], label="IEKF", linewidth=2.0)
+        ax2_zoom[i].plot(t_common[mask_zoom], v_sm_i[mask_zoom, i], linestyle=":", label="IS", linewidth=1.0)
+        ax2_zoom[i].set_ylabel(rf"$v_{{{labels[i]}}}$ [m/s]", fontsize=20)
+        if i == 2:
+            ax2_zoom[i].legend(fontsize=20, loc="upper left", ncol=4)
+        ax2_zoom[i].grid(True, color='gray', alpha=0.3)
+        ax2_zoom[i].set_xlim(zoom_t_min, zoom_t_max)
+        ylims = [(0.25, 1.35), (-1.2, 0.3), (-0.2, 0.45)]
+        ax2_zoom[i].set_ylim(ylims[i])
+        ax2_zoom[i].tick_params(axis='both', labelsize=20)
+    ax2_zoom[-1].set_xlabel("Time [s]", fontsize=20)
+    ax2_zoom[0].set_title(f"Linear Velocity (zoomed: {zoom_t_min:.1f}–{zoom_t_max:.1f} s)", fontsize=20)
+    plt.tight_layout()
 
-    # # RPY
-    # fig3, ax3 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
-    # rpy_names = ["roll", "pitch", "yaw"]
-    # for i in range(3):
-    #     ax3[i].plot(t_common, rpy_gt[:, i]-rpy_gt[0, i], linestyle="--", label="GT", linewidth=2.0)
-    #     ax3[i].plot(t_common, rpy_fu[:, i]-rpy_fu[0, i], label="MUSE", linewidth=2.0)
-    #     ax3[i].plot(t_common, rpy_ik[:, i]-rpy_ik[0, i], label="IEKF", linewidth=2.0)
-    #     ax3[i].plot(t_common, rpy_sm[:, i]-rpy_sm[0, i], linestyle=":", label="IS", linewidth=1.0)
-    #     ax3[i].set_ylabel(rf"${rpy_names[i]}$ [°]", fontsize=30)
-    #     if i == 0:
-    #         ax3[i].legend(fontsize=25, loc="upper right", ncol=4)
-    #     ax3[i].grid(True, color='gray', alpha=0.3)
-    #     ax3[i].set_xlim(t_common[0], t_common[-1])
-    #     ylims = [(-35, 35), (-35, 35), (-250, 250)]
-    #     ax3[i].set_ylim(ylims[i])
-    #     ax3[i].tick_params(axis='both', labelsize=30)
-    # ax3[-1].set_xlabel("Time [s]", fontsize=30)
-    # ax3[0].set_title("Orientation (roll, pitch, yaw)", fontsize=30)
-    # plt.tight_layout()
+    # RPY
+    fig3, ax3 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
+    rpy_names = ["roll", "pitch", "yaw"]
+    for i in range(3):
+        ax3[i].plot(t_common, rpy_gt[:, i]-rpy_gt[0, i], linestyle="--", label="GT", linewidth=2.0)
+        ax3[i].plot(t_common, rpy_muse[:, i]-rpy_muse[0, i], label="MUSE", linewidth=2.0)
+        ax3[i].plot(t_common, rpy_ik[:, i]-rpy_ik[0, i], label="IEKF", linewidth=2.0)
+        ax3[i].plot(t_common, rpy_sm[:, i]-rpy_sm[0, i], linestyle=":", label="IS", linewidth=1.0)
+        ax3[i].set_ylabel(rf"${rpy_names[i]}$ [°]", fontsize=30)
+        if i == 0:
+            ax3[i].legend(fontsize=25, loc="upper right", ncol=4)
+        ax3[i].grid(True, color='gray', alpha=0.3)
+        ax3[i].set_xlim(t_common[0], t_common[-1])
+        ylims = [(-35, 35), (-35, 35), (-250, 250)]
+        ax3[i].set_ylim(ylims[i])
+        ax3[i].tick_params(axis='both', labelsize=30)
+    ax3[-1].set_xlabel("Time [s]", fontsize=30)
+    ax3[0].set_title("Orientation (roll, pitch, yaw)", fontsize=30)
+    plt.tight_layout()
 
-    # RPY -- bad init
-    # zoom_t_min = t_common[0]
-    # zoom_t_max = 100.0
-    # mask_zoom = (t_common >= zoom_t_min) & (t_common <= zoom_t_max)
-
-    # # Only roll and pitch -> 2 subplots
-    # fig3, ax3 = plt.subplots(2, 1, figsize=(11, 5.3), sharex=True)
-    # rpy_names = ["roll", "pitch"]
-
-    # for i in range(2):
-    #     ax3[i].plot(t_common[mask_zoom], rpy_gt[mask_zoom, i] - rpy_gt[0, i], linestyle="--", label="GT", linewidth=2.0)
-    #     ax3[i].plot(t_common[mask_zoom], rpy_fu[mask_zoom, i], label="MUSE", linewidth=2.0)
-    #     ax3[i].plot(t_common[mask_zoom], rpy_ik[mask_zoom, i], label="IEKF", linewidth=2.0)
-    #     ax3[i].plot(t_common[mask_zoom], rpy_sm[mask_zoom, i], linestyle=":", label="IS", linewidth=2.0)
-
-    #     ax3[i].set_ylabel(rf"${rpy_names[i]}$ [°]", fontsize=20)
-    #     ax3[i].grid(True, color='gray', alpha=0.3)
-    #     ax3[i].set_xlim(zoom_t_min, zoom_t_max)
-    #     ax3[i].tick_params(axis='both', labelsize=20)
-    #     ax3[i].axvspan(t_common[0], 6.09, alpha=0.1, color='coral', label="MUSE convergence")
-    #     ax3[i].axvspan(6.09, 33.0, alpha=0.1, color='turquoise', label="IEKF/IS convergence")
-
-    # ax3[0].legend(fontsize=20, loc="upper right", ncol=2)
-    # ax3[-1].set_xlabel("Time [s]", fontsize=20)
-    # ax3[0].set_title("Roll and Pitch (large initial condition)", fontsize=20)
-    # plt.tight_layout()
-
-
-    # # Quaternion components
-    # fig4, ax4 = plt.subplots(4, 1, figsize=(11, 9), sharex=True)
-    # qlabs = ["qx", "qy", "qz", "qw"]
-    # for i, lab in enumerate(qlabs):
-    #     ax4[i].plot(t_common, q_gt_i[:, i], label="GT", linewidth=1.0)
-    #     ax4[i].plot(t_common, q_fu[:, i],   label="MUSE", linewidth=1.2)
-    #     ax4[i].plot(t_common, q_ik_i[:, i], label="IEKF", linewidth=1.0)
-    #     ax4[i].plot(t_common, q_sm_i[:, i], label="IS", linewidth=1.0)
-    #     ax4[i].set_ylabel(lab)
-    #     ax4[i].grid(True)
-    #     ax4[i].legend()
-    # ax4[-1].set_xlabel("time [s]")
-    # ax4[0].set_title("Quaternion components (aligned sign, aligned frame)")
-    # plt.tight_layout()
-
-    # # Trajectory XY (aligned frame)
-    # plt.figure(figsize=(8, 8))
-    # plt.plot(p_gt_i[:, 0], p_gt_i[:, 1] - p_gt_i[0, 1], label="GT", linewidth=1.2)
-    # plt.plot(p_fu[:, 0],   p_fu[:, 1]   - p_fu[0, 1],   label="MUSE", linewidth=1.5)
-    # plt.plot(p_ik_i[:, 0], p_ik_i[:, 1] - p_ik_i[0, 1], label="IEKF", linewidth=1.0)
-    # plt.plot(p_sm_i[:, 0], p_sm_i[:, 1] - p_sm_i[0, 1], label="IS", linewidth=1.0)
-    # plt.xlabel("x [m]")
-    # plt.ylabel("y [m]")
-    # plt.title("Trajectory XY (aligned frame)")
-    # plt.axis("equal")
-    # plt.grid(True)
-    # plt.legend()
-    # plt.tight_layout()
+    # Trajectory XY (aligned frame)
+    plt.figure(figsize=(8, 8))
+    plt.plot(p_gt_i[:, 0], p_gt_i[:, 1] - p_gt_i[0, 1], label="GT", linewidth=1.2)
+    plt.plot(p_muse[:, 0],   p_muse[:, 1]   - p_muse[0, 1],   label="MUSE", linewidth=1.5)
+    plt.plot(p_ik_i[:, 0], p_ik_i[:, 1] - p_ik_i[0, 1], label="IEKF", linewidth=1.0)
+    plt.plot(p_sm_i[:, 0], p_sm_i[:, 1] - p_sm_i[0, 1], label="IS", linewidth=1.0)
+    plt.xlabel("x [m]")
+    plt.ylabel("y [m]")
+    plt.title("Trajectory XY (aligned frame)")
+    plt.axis("equal")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
 
     # Runtime boxplot
     plt.figure(figsize=(12, 3))
@@ -464,16 +412,15 @@ def main():
     plt.grid(axis='y', which='both', alpha=0.3, linestyle='-', linewidth=0.5)
     plt.grid(axis='y', which='minor', alpha=0.15, linestyle=':', linewidth=0.5)
     plt.tight_layout()
-    plt.savefig("runtime_comparison.pdf", format="pdf", bbox_inches="tight")
+    
    
-
-
-    # plt.show()
-    # # Save plots as PDF
-    # fig1.savefig("position.pdf", format="pdf", bbox_inches="tight")
-    # fig2.savefig("velocity.pdf", format="pdf", bbox_inches="tight")
-    # fig2_zoom.savefig("velocity_zoomed.pdf", format="pdf", bbox_inches="tight")
-    # fig3.savefig("orientation_bad_init.pdf", format="pdf", bbox_inches="tight")
+    plt.show()
+    # Save plots as PDF
+    fig1.savefig("position.pdf", format="pdf", bbox_inches="tight")
+    fig2.savefig("velocity.pdf", format="pdf", bbox_inches="tight")
+    fig2_zoom.savefig("velocity_zoomed.pdf", format="pdf", bbox_inches="tight")
+    fig3.savefig("orientation_bad_init.pdf", format="pdf", bbox_inches="tight")
+    plt.savefig("runtime_comparison.pdf", format="pdf", bbox_inches="tight")
 
     plt.show()
 
