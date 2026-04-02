@@ -12,12 +12,12 @@
 #include <unordered_map>
 #include <vector>
 
-// ---- Attitude core (your code)
+// ---- Attitude core
 #include "Models/attitude_bias_XKF.hpp"
 #include "lib.hpp"
 #include "rotations.h"
 
-// ---- Sensor fusion (your offline KF)
+// ---- Sensor fusion (offline KF)
 #include "Models/SensorFusion.hpp"   // state_estimator::KFSensorFusion
 
 #include <chrono>
@@ -84,8 +84,8 @@ static bool getColAsBoolTF01(const std::vector<std::string>& row,
 // -----------------------------
 struct FeetKinRow {
     double t_abs{};
-    Eigen::Vector3d pLF, pRF, pLH, pRH;  // positions (same frame as you computed in pinocchio export)
-    Eigen::Vector3d vLF, vRF, vLH, vRH;  // linear velocities (LOCAL_WORLD_ALIGNED style in the export you fixed)
+    Eigen::Vector3d pLF, pRF, pLH, pRH;  // positions (same frame as computed in pinocchio export)
+    Eigen::Vector3d vLF, vRF, vLH, vRH;  // linear velocities (LOCAL_WORLD_ALIGNED)
 };
 
 static FeetKinRow parseFeetKinRow(const std::vector<std::string>& row,
@@ -210,7 +210,7 @@ int main(int argc, char** argv)
     out_fs << "t_rel,t_abs,px,py,pz,vx,vy,vz,qw,qx,qy,qz\n";
 
     // -----------------------------
-    // ATTITUDE PARAMETERS / INIT (verbatim)
+    // ATTITUDE PARAMETERS / INIT 
     // -----------------------------
     double ki = 0.02; // 0.05;
     double kp = 10.0;// 5.0;
@@ -229,30 +229,6 @@ int main(int argc, char** argv)
     Eigen::Matrix<double,6,6> P0 = Eigen::Matrix<double,6,6>::Identity() * 1e-12;
     Eigen::Matrix<double,6,6> Q = Eigen::Matrix<double,6,6>::Identity() * 1e-15;
     Eigen::Matrix<double,6,6> Ratt = Eigen::Matrix<double,6,6>::Identity() * 1e-6;
-    // Eigen::Matrix<double,6,6> P0   ; //= Eigen::Matrix<double,6,6>::Identity() * 1e-10;
-    // Eigen::Matrix<double,6,6> Q    ; //= Eigen::Matrix<double,6,6>::Identity() * 1e-10;
-    // Eigen::Matrix<double,6,6> Ratt ; //= Eigen::Matrix<double,6,6>::Identity() * 1e-4;
-
-    // P0 <<   1.0e-12, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 1.0e-12, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 1.0e-12, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 1.0e-12, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 1.0e-12, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-12;
-
-    // Q <<    1.0e-15, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 1.0e-15, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 1.0e-15, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 1.0e-15, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 1.0e-15, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-15;
-
-    // Ratt << 1.0e-8, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 1.0e-8, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 1.0e-8, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 1.0e-8, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 1.0e-8, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-8;
 
     double t0_att = 0.0;
     Eigen::Matrix<double,7,1> xhat_estimated;
@@ -267,29 +243,17 @@ int main(int argc, char** argv)
     // -----------------------------
     double t0 = 0.0;
     Eigen::Matrix<double,6,1> x0; x0.setZero();
+    x0 (0) = -0.25565; // initial position (x) from dataset
+    x0 (1) = 0.00255;  // initial position (y) from dataset
+    x0 (2) = 0.07672;  // initial position (z) from dataset
+    x0 (3) = 0.0;      // initial velocity (vx) from dataset
+    x0 (4) = 0.0;      // initial velocity (vy) from dataset
+    x0 (5) = 0.0;      // initial velocity (vz) from dataset
 
     // Tune these (or read from YAML).
-    Eigen::Matrix<double,6,6> Psf; // = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
-    Eigen::Matrix<double,6,6> Qsf; // = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
-    Eigen::Matrix<double,3,3> Rsf; // = Eigen::Matrix<double,3,3>::Identity() * 5e-17;
-
-    Psf << 1.0e-4, 0.0, 0.0, 0.0, 0.0, 0.0,
-           0.0, 1.0e-12, 0.0, 0.0, 0.0, 0.0,
-           0.0, 0.0, 1.0e-4, 0.0, 0.0, 0.0,
-           0.0, 0.0, 0.0, 1.0e-4, 0.0, 0.0,
-           0.0, 0.0, 0.0, 0.0, 1.0e-4, 0.0,
-           0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-4;
-
-    Qsf <<  1.0e-9, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 1.0e-15, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 1.0e-9, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 1.0e-9, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 1.0e-9, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-9;
-
-    Rsf <<  1.0e-11, 0.0, 0.0,
-            0.0, 1.0e-11, 0.0,
-            0.0, 0.0, 1.0e-11;
+    Eigen::Matrix<double,6,6> Psf = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
+    Eigen::Matrix<double,6,6> Qsf = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
+    Eigen::Matrix<double,3,3> Rsf = Eigen::Matrix<double,3,3>::Identity() * 5e-16;
 
     state_estimator::KFSensorFusion kf(t0, x0, Psf, Qsf, Rsf, false, false);
 

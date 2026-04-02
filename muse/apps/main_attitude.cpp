@@ -105,7 +105,7 @@
         return 1;
     }
 
-    // Required IMU columns (as in your dataset screenshot)
+    // Required IMU columns
     // imu_wx, imu_wy, imu_wz, imu_ax, imu_ay, imu_az
     const std::vector<std::string> required = {
         "imu_wx","imu_wy","imu_wz","imu_ax","imu_ay","imu_az"
@@ -128,7 +128,7 @@
     //             0, 1, 0,
     //             0, 0, -1;
 
-    /*
+    /* from /tf:
       frame_id: "base"
     child_frame_id: "imu_link"
     transform: 
@@ -150,45 +150,19 @@
     b_quat_imu.z() = 6.123233995736766e-17;
     b_R_imu = iit::commons::quatToRotMat(b_quat_imu.normalized()).transpose();
 
-    // north_vector default in plugin:
+    // north_vector default:
     Eigen::Vector3d m_n(1.0/std::sqrt(3.0), 1.0/std::sqrt(3.0), 1.0/std::sqrt(3.0));
 
-    // gravity_vector default in plugin:
+    // gravity_vector default:
     Eigen::Vector3d f_n(0.0, 0.0, 9.81);
 
-    // Covariances P0/Q/R (plugin expects 6x6). Here we set sane defaults.
-    Eigen::Matrix<double,6,6> P0 = Eigen::Matrix<double,6,6>::Identity() * 1e-10;
-    Eigen::Matrix<double,6,6> Q  = Eigen::Matrix<double,6,6>::Identity() * 1e-10;
-    Eigen::Matrix<double,6,6> R  = Eigen::Matrix<double,6,6>::Identity() * 1e-5;
-
-    // Eigen::Matrix<double,6,6> P0;
-    // Eigen::Matrix<double,6,6> Q; 
-    // Eigen::Matrix<double,6,6> R;
-    // P0 <<   1.0e-6, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 1.0e-6, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 1.0e-6, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 1.0e-16, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 1.0e-16, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-16;
-
-    // Q <<    1.0e-6, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 1.0e-6, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 1.0e-6, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 1.0e-12, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 1.0e-12, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-12;
-
-    // R <<    1.0e-3, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 1.0e-3, 0.0, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 1.0e-3, 0.0, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 1.0e12, 0.0, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 1.0e12, 0.0,
-    //         0.0, 0.0, 0.0, 0.0, 0.0, 1.0e12;
-
-
+    // Covariances P0/Q/R (plugin expects 6x6).
+    Eigen::Matrix<double,6,6> P0 = Eigen::Matrix<double,6,6>::Identity() * 1e-12;
+    Eigen::Matrix<double,6,6> Q  = Eigen::Matrix<double,6,6>::Identity() * 1e-15;
+    Eigen::Matrix<double,6,6> R  = Eigen::Matrix<double,6,6>::Identity() * 1e-6;
 
     // -----------------------------
-    // Plugin state init (identico)
+    // Plugin state init
     // -----------------------------
     double t0 = 0.0;
 
@@ -196,7 +170,7 @@
     xhat_estimated << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
     xhat_estimated.head<4>() /= xhat_estimated.head<4>().norm();
 
-    // Create filter (identico al plugin)
+    // Create filter
     state_estimator::AttitudeBiasXKF attitude(t0, xhat_estimated, P0, Q, R, f_n, m_n, ki, kp);
 
     // -----------------------------
@@ -280,7 +254,7 @@
             << omega_filt(0) << "," << omega_filt(1) << "," << omega_filt(2)
             << "\n";
 
-        (void)dt; // dt disponibile se vuoi stamparlo/debug
+        (void)dt; 
         count++;
         }
         catch (const std::exception&) {

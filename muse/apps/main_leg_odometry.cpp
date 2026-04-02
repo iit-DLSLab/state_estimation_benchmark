@@ -76,13 +76,9 @@ int main(int argc, char** argv) {
         Eigen::Vector3d v_base_b_box = base_R_box * res.v_base_b;
         Eigen::Vector3d v_base_w_box = base_R_box * res.v_base_w;
 
-        // out << t_rel << "," << s.t_abs << ","
-        //     << v_base_b_box.x() << "," << v_base_b_box.y() << "," << v_base_b_box.z() << ","
-        //     << v_base_w_box.x() << "," << v_base_w_box.y() << "," << v_base_w_box.z() << "\n";
-
         out << t_rel << "," << s.t_abs << ","
             << res.v_base_b.x() << "," << -res.v_base_b.y() << "," << res.v_base_b.z() << ","
-            << res.v_base_w.x() << "," << -res.v_base_w.y() << "," << res.v_base_w.z() << "\n";     // this is the correct one
+            << res.v_base_w.x() << "," << -res.v_base_w.y() << "," << res.v_base_w.z() << "\n";
 
 
 

@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
     CsvReader att(att_csv);
     CsvReader leg(leg_csv);
 
-    // base_R_imu per ANYmalD
+    // base_R_imu for ANYmalD
     Eigen::Matrix3d base_R_imu;
     // base_R_imu << -1, 0, 0,
     //                0, 1, 0,
@@ -95,17 +95,18 @@ int main(int argc, char** argv) {
     // z: 0.07672
     const double t0 = 0.0;
     Eigen::Matrix<double,6,1> x0; x0.setZero();
-    x0(0) = -0.25565; // initial position (x)
-    x0(1) = 0.00255;  // initial position (y)
-    x0(2) = 0.07672;  // initial position (z)
-    x0(3) = 0.0;      // initial velocity (vx)
-    x0(4) = 0.0;      // initial velocity (vy)
-    x0(5) = 0.0;      // initial velocity (vz)
+    x0(0) = -0.25565; // initial position (x) from dataset
+    x0(1) = 0.00255;  // initial position (y) from dataset
+    x0(2) = 0.07672;  // initial position (z) from dataset
+    x0(3) = 0.0;      // initial velocity (vx) from dataset
+    x0(4) = 0.0;      // initial velocity (vy) from dataset
+    x0(5) = 0.0;      // initial velocity (vz) from dataset
 
-    Eigen::Matrix<double,6,6> P; P.setIdentity(); P *= 1e-10;
-    Eigen::Matrix<double,6,6> Q; Q.setIdentity(); Q *= 1e-10;
-    Eigen::Matrix<double,3,3> R; R.setIdentity(); R *= 5e-13;
+    Eigen::Matrix<double,6,6> P; P.setIdentity(); P *= 1e-14;
+    Eigen::Matrix<double,6,6> Q; Q.setIdentity(); Q *= 1e-14;
+    Eigen::Matrix<double,3,3> R; R.setIdentity(); R *= 5e-16;
 
+    
     state_estimator::KFSensorFusion kf(t0, x0, P, Q, R, false, false);
 
     try {
@@ -157,7 +158,7 @@ int main(int argc, char** argv) {
 
         kf.predict(t_rel, u_w);
 
-        // misura velocità
+        // velocity measurement
         Eigen::Vector3d z_v_w;
 
         const bool leg_has_world =
@@ -168,7 +169,7 @@ int main(int argc, char** argv) {
             z_v_w.y() = stod_safe(rl.v[leg.idx("v_base_w_y")]);
             z_v_w.z() = stod_safe(rl.v[leg.idx("v_base_w_z")]);
         } else {
-            // fallback: base-frame velocity in CSV -> rotate to world like plugin
+            // fallback: base-frame velocity in CSV -> rotate to world
             Eigen::Vector3d v_b;
             v_b.x() = stod_safe(rl.v[leg.idx("v_base_b_x")]);
             v_b.y() = stod_safe(rl.v[leg.idx("v_base_b_y")]);
