@@ -90,17 +90,8 @@ int main(int argc, char** argv) {
     std::cout << "base_R_imu:\n" << base_R_imu << "\n";
 
     // Initialization KF
-    // x: -0.25565
-    // y: 0.00255
-    // z: 0.07672
     const double t0 = 0.0;
     Eigen::Matrix<double,6,1> x0; x0.setZero();
-    x0(0) = -0.25565; // initial position (x) from dataset
-    x0(1) = 0.00255;  // initial position (y) from dataset
-    x0(2) = 0.07672;  // initial position (z) from dataset
-    x0(3) = 0.0;      // initial velocity (vx) from dataset
-    x0(4) = 0.0;      // initial velocity (vy) from dataset
-    x0(5) = 0.0;      // initial velocity (vz) from dataset
 
     Eigen::Matrix<double,6,6> P; P.setIdentity(); P *= 1e-14;
     Eigen::Matrix<double,6,6> Q; Q.setIdentity(); Q *= 1e-14;

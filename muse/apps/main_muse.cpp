@@ -126,8 +126,8 @@ int main(int argc, char** argv)
 
     const std::string out_att_csv = dataset_root + "/muse/attitude_estimate_muse.csv";
     const std::string out_lo_csv  = dataset_root + "/muse/leg_odometry.csv";
-    // const std::string out_fs_csv  = dataset_root + "/muse/fused_state.csv";
-    const std::string out_fs_csv  = dataset_root + "/muse/fused_state_bad_init_ori.csv";
+    const std::string out_fs_csv  = dataset_root + "/muse/fused_state.csv";
+    // const std::string out_fs_csv  = dataset_root + "/muse/fused_state_bad_init_ori.csv";
 
     std::cout << "MUSE OFFLINE (single executable)\n";
     std::cout << "  sensor_data : " << sensor_csv << "\n";
@@ -232,8 +232,8 @@ int main(int argc, char** argv)
 
     double t0_att = 0.0;
     Eigen::Matrix<double,7,1> xhat_estimated;
-    xhat_estimated << 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0; // bad initialization
-    // xhat_estimated << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0; // q(w,x,y,z) in this order is the correct initialization
+    // xhat_estimated << 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0; // bad initialization
+    xhat_estimated << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0; // q(w,x,y,z) in this order is the correct initialization
     xhat_estimated.head<4>() /= xhat_estimated.head<4>().norm();
 
     state_estimator::AttitudeBiasXKF attitude(t0_att, xhat_estimated, P0, Q, Ratt, f_n, m_n, ki, kp);
@@ -243,13 +243,8 @@ int main(int argc, char** argv)
     // -----------------------------
     double t0 = 0.0;
     Eigen::Matrix<double,6,1> x0; x0.setZero();
-    x0 (0) = -0.25565; // initial position (x) from dataset
-    x0 (1) = 0.00255;  // initial position (y) from dataset
-    x0 (2) = 0.07672;  // initial position (z) from dataset
-    x0 (3) = 0.0;      // initial velocity (vx) from dataset
-    x0 (4) = 0.0;      // initial velocity (vy) from dataset
-    x0 (5) = 0.0;      // initial velocity (vz) from dataset
 
+    
     // Tune these (or read from YAML).
     Eigen::Matrix<double,6,6> Psf = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
     Eigen::Matrix<double,6,6> Qsf = Eigen::Matrix<double,6,6>::Identity() * 1e-14;
