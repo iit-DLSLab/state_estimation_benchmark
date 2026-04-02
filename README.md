@@ -1,22 +1,39 @@
 # State Estimation Benchmark
 This repository provides an offline benchmarking pipeline for quadruped state estimation using CSV datasets (proprioceptive measurements and ground truth).
 
-At the current stage, the repository supports:
-- Offline data preprocessing (Pinocchio --> foot kinematics)
-- Offline porting of MUSE
+The CSV datasets are generated from the [ANYmal GrandTour dataset](https://grand-tour.leggedrobotics.com/dataset), specifically from the rosbags of sequence **CYN-1**.
+
+
 
 ## Dependencies
-- C++ toolchain
-- Eigen
-- Pinocchio
-- Python (numpy, pandas, matplotlib, scipy)
-
 We recommend using conda-forge to ensure C++ and Python dependencies across machines.
-Create and activate the environment: 
+Create and activate the environment:
 ```
 conda env create -f environment.yml
 conda activate state_est_bench
 ```
+
+If you prefer to install manually, the full list of dependencies is:
+
+**Build tools**
+- [CMake >= 3.22](https://github.com/Kitware/CMake)
+- [Ninja](https://github.com/ninja-build/ninja)
+- C/C++ compiler (gcc/clang)
+
+**C++ libraries**
+- [Eigen](https://gitlab.com/libeigen/eigen)
+- [Pinocchio](https://github.com/stack-of-tasks/pinocchio)
+- [fmt](https://github.com/fmtlib/fmt)
+- [yaml-cpp](https://github.com/jbeder/yaml-cpp)
+
+**Python packages**
+- [numpy](https://github.com/numpy/numpy)
+- [pandas](https://github.com/pandas-dev/pandas)
+- [matplotlib](https://github.com/matplotlib/matplotlib)
+- [scipy](https://github.com/scipy/scipy)
+- [pyproj](https://github.com/pyproj4/pyproj) + [PROJ](https://github.com/OSGeo/PROJ) (for GNSS georeferencing)
+- [contextily](https://github.com/geopandas/contextily) (for map tile backgrounds in plots)
+- [evo](https://github.com/MichaelGrupp/evo) (for trajectory metrics)
 
 ## Data format
 `sensor_data.csv` is a CSV file containing proprioceptive measurements. Its format is:
@@ -56,7 +73,7 @@ Build and run:
 ```
 Output: `data/anymalD_grandtour/feet_kinematics.csv`
 
-## Step 3 - Run MUSE (attitude + leg odometry + fused state)
+## Step 3 - Run MUSE 
 Build and run MUSE:
 ```
 cd muse
@@ -65,15 +82,18 @@ cmake ..
 make -j$(nproc)
 ./main_muse
 ```
-or you can run also separately:
+or, since MUSE is a modular state estimator, we provide executables for each single modules. They can be run also separately:
 ```
 ./main_attitude_estimation
 ./main_leg_odometry
-./main_muse
+./sensor_fusion
 ```
 Default input dataset root: `data/anymalD_grandtour`
 
-Generated outputs:
+Generated output:
+- `data/anymalD_grandtour/muse/fused_state.csv`
+
+Generated outputs if the modules are run separately:
 - `data/anymalD_grandtour/muse/attitude_estimate_muse.csv`
 - `data/anymalD_grandtour/muse/leg_odometry.csv`
 - `data/anymalD_grandtour/muse/fused_state.csv`
@@ -107,29 +127,40 @@ Generated output:
 - `data/anymalD_grandtour/invariant_smoother/fused_state.csv`
 
 ## Step 6 - Plot and compare results
-From the repository root, run:
+To plot and compare fused trajectories: GT vs MUSE vs IEKF vs Invariant Smoother, from the repository root, run:
 ```
-# MUSE attitude vs GT
-python3 data_process/scripts/plot_muse_attitude_vs_gt.py
-
-# MUSE leg odometry velocity vs GT velocity
-python3 data_process/scripts/plot_legodom_vs_gtvel.py
-
-# Compare fused trajectories: MUSE vs IEKF vs Invariant Smoother vs GT
-python3 data_process/scripts/plot_fused_vs_gt.py
+python3 data_process/scripts/plots.py
 ```
 
-Note:
-- `plot_muse_attitude_vs_gt.py` and `plot_legodom_vs_gtvel.py` read `groundtruth.csv`.
-- `plot_fused_vs_gt.py` currently reads `anymal_state.csv` as GT.
-
-## One-command full pipeline
-From the repository root, you can run preprocessing + MUSE + IEKF + Invariant Smoother with one command:
+## Step 7 - Convert trajectories to TUM format
+First, convert local-frame GT and estimator trajectories to TUM format (`t x y z qx qy qz qw`).
+Run from the dataset folder:
 ```
-./run_all_estimators.sh
+cd data/anymalD_grandtour
+python3 ../../data_process/scripts/convert_to_tum.py
 ```
 
-Optional custom dataset root (relative to repository root):
+Generated files:
+- `data/anymalD_grandtour/tum/groundtruth_traj_tum.csv`
+- `data/anymalD_grandtour/tum/muse_traj_tum.csv`
+- `data/anymalD_grandtour/tum/iekf_traj_tum.csv`
+- `data/anymalD_grandtour/tum/is_traj_tum.csv`
+
+The script `convert_to_tum.py` also prints the command to compute the evaluation metrics from `evo` on the estimated trajectories.
+
+Optionally, you can also georeference TUM trajectories to UTM using GNSS with `data/anymalD_grandtour/tum/georef_from_gnss.py`.
+
+From repository root:
 ```
-./run_all_estimators.sh --dataset data/anymalD_grandtour
+python3 data/anymalD_grandtour/tum/georef_from_gnss.py \
+  --gnss data/anymalD_grandtour/tum/gt_navsatfix.csv \
+  --gt data/anymalD_grandtour/tum/groundtruth_traj_tum.csv \
+  --traj data/anymalD_grandtour/tum/muse_traj_tum.csv data/anymalD_grandtour/tum/iekf_traj_tum.csv data/anymalD_grandtour/tum/is_traj_tum.csv \
+  --out_dir data/anymalD_grandtour/tum/georef_out \
+  --fit_seconds 60 \
+  --use_gnss_z
 ```
+
+Outputs are written in `data/anymalD_grandtour/tum/georef_out/` as `gt_georef.tum`
+and one `*_georef.tum` per trajectory.
+
