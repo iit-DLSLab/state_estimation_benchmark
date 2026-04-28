@@ -271,9 +271,9 @@ int main(int argc, char** argv)
     bool VCC = false;
     double cov_amplifier = 1;
 
-    int max_backpp_no = 10;
+    int max_backpp_no = 1;      //10;
     double backpp_rate = 0.5;
-    int max_it_no = 10;
+    int max_it_no = 1;          //10;
     double convergence_cond = 1e-3;
 
     double gyro_exp = -4, acc_exp = -1, slip_exp = -1.3, contact_exp = -4, encoder_exp = -5;    // smooth
