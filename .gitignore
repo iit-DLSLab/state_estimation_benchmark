@@ -14,6 +14,8 @@ build.ninja
 
 # Data exports
 *.csv
+*.pdf
+*.tum
 
 # VS Code
 .vscode/
