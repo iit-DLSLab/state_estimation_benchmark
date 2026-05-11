@@ -47,7 +47,7 @@ timestamp, px, py, pz, qx, qy, qz, vx, vy, vz
 ```
 
 ## Step 1 - Dataset sanity check
-Build and run the dataset inspection tool:
+From the root directory, build and run the dataset inspection tool:
 ```
 cd data_process
 mkdir -p build && cd build
@@ -67,14 +67,14 @@ This step computes, offline, all kinematics required by leg-based estimators:
 - Foot Jacobians
 - Foot velocities
 
-Build and run:
+From the root directory, build and run:
 ```
 ./precompute_feet_kinematics
 ```
 Output: `data/anymalD_grandtour/feet_kinematics.csv`
 
 ## Step 3 - Run MUSE 
-Build and run MUSE:
+From the root directory, build and run MUSE:
 ```
 cd muse
 mkdir -p build && cd build
@@ -99,7 +99,7 @@ Generated outputs if the modules are run separately:
 - `data/anymalD_grandtour/muse/fused_state.csv`
 
 ## Step 4 - Run IEKF
-Build and run IEKF:
+From the root directory, build and run IEKF:
 ```
 cd iekf
 mkdir -p build && cd build
@@ -113,7 +113,7 @@ Generated output:
 - `data/anymalD_grandtour/iekf/fused_state.csv`
 
 ## Step 5 - Run Invariant Smoother
-Build and run the invariant smoother:
+From the root directory, build and run the invariant smoother:
 ```
 cd invariant_smoother
 mkdir -p build && cd build
