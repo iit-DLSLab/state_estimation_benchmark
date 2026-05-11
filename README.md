@@ -67,7 +67,7 @@ This step computes, offline, all kinematics required by leg-based estimators:
 - Foot Jacobians
 - Foot velocities
 
-From the root directory, build and run:
+Build and run:
 ```
 ./precompute_feet_kinematics
 ```
@@ -84,9 +84,9 @@ make -j$(nproc)
 ```
 or, since MUSE is a modular state estimator, we provide executables for each single modules. They can be run also separately:
 ```
-./main_attitude_estimation
+./main_attitude
 ./main_leg_odometry
-./sensor_fusion
+./main_sensor_fusion
 ```
 Default input dataset root: `data/anymalD_grandtour`
 
@@ -105,8 +105,6 @@ cd iekf
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
-
-# optional: pass a custom dataset root as first argument
 ./main_iekf
 ```
 Generated output:
@@ -119,8 +117,6 @@ cd invariant_smoother
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
-
-# optional: pass a custom dataset root as first argument
 ./main_invariant_smoother
 ```
 Generated output:
