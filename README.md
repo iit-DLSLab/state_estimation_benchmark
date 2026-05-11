@@ -82,21 +82,23 @@ cmake ..
 make -j$(nproc)
 ./main_muse
 ```
-or, since MUSE is a modular state estimator, we provide executables for each single modules. They can be run also separately:
+<!-- or, since MUSE is a modular state estimator, we provide executables for each single modules. They can be run also separately:
 ```
 ./main_attitude
 ./main_leg_odometry
 ./main_sensor_fusion
-```
+``` -->
 Default input dataset root: `data/anymalD_grandtour`
 
 Generated output:
 - `data/anymalD_grandtour/muse/fused_state.csv`
+- `data/anymalD_grandtour/muse/attitude_estimate.csv`
+- `data/anymalD_grandtour/muse/leg_odometry.csv`
 
-Generated outputs if the modules are run separately:
+<!-- Generated outputs if the modules are run separately:
 - `data/anymalD_grandtour/muse/attitude_estimate_muse.csv`
 - `data/anymalD_grandtour/muse/leg_odometry.csv`
-- `data/anymalD_grandtour/muse/fused_state.csv`
+- `data/anymalD_grandtour/muse/fused_state.csv` -->
 
 ## Step 4 - Run IEKF
 From the root directory, build and run IEKF:

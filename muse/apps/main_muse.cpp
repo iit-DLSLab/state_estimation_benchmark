@@ -129,7 +129,7 @@ int main(int argc, char** argv)
     const std::string sensor_csv = dataset_root + "/sensor_data.csv";
     const std::string feet_csv   = dataset_root + "/feet_kinematics.csv";
 
-    const std::string out_att_csv = dataset_root + "/muse/attitude_estimate_muse.csv";
+    const std::string out_att_csv = dataset_root + "/muse/attitude_estimate.csv";
     const std::string out_lo_csv  = dataset_root + "/muse/leg_odometry.csv";
     const std::string out_fs_csv  = dataset_root + "/muse/fused_state.csv";
     // const std::string out_fs_csv  = dataset_root + "/muse/fused_state_bad_init_ori.csv";

@@ -149,7 +149,7 @@ def main() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     dataset_dir = repo_root / DATASET_DIR
 
-    gt_path = dataset_dir / "groundtruth_vel.csv"
+    gt_path = dataset_dir / "groundtruth.csv"
     muse_path = dataset_dir / "muse/fused_state.csv"
     iekf_path = dataset_dir / "iekf/fused_state.csv"
     inv_smoother_path = dataset_dir / "invariant_smoother/fused_state.csv"

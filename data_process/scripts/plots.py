@@ -37,8 +37,8 @@ def first_existing_path(*candidates):
 
 
 GT_FILE = first_existing_path(
-    DATASET_ROOT / "groundtruth_rotated_vel.csv",
-    DATASET_ROOT / "groundtruth_vel.csv",
+    # DATASET_ROOT / "groundtruth_rotated_vel.csv",
+    DATASET_ROOT / "groundtruth.csv",
 )
 MUSE_FILE = DATASET_ROOT / "muse" / "fused_state.csv"
 IEKF_FILE = DATASET_ROOT / "iekf" / "fused_state.csv"
@@ -324,19 +324,19 @@ def main():
     rmse_sm_xyz, rmse_sm_norm = compute_rmse(e_sm)
     rmse_ik_xyz, rmse_ik_norm = compute_rmse(e_ik)
 
-    print("Trajectory RMSE from aligned, time-synchronized, zero-start trajectories:")
-    print(
-        f"  MUSE: ex={rmse_muse_xyz[0]:.4f} m, ey={rmse_muse_xyz[1]:.4f} m, "
-        f"ez={rmse_muse_xyz[2]:.4f} m, ||e||={rmse_muse_norm:.4f} m"
-    )
-    print(
-        f"  IEKF: ex={rmse_ik_xyz[0]:.4f} m, ey={rmse_ik_xyz[1]:.4f} m, "
-        f"ez={rmse_ik_xyz[2]:.4f} m, ||e||={rmse_ik_norm:.4f} m"
-    )
-    print(
-        f"  IS:   ex={rmse_sm_xyz[0]:.4f} m, ey={rmse_sm_xyz[1]:.4f} m, "
-        f"ez={rmse_sm_xyz[2]:.4f} m, ||e||={rmse_sm_norm:.4f} m"
-    )
+    # print("Trajectory RMSE from aligned, time-synchronized, zero-start trajectories:")
+    # print(
+    #     f"  MUSE: ex={rmse_muse_xyz[0]:.4f} m, ey={rmse_muse_xyz[1]:.4f} m, "
+    #     f"ez={rmse_muse_xyz[2]:.4f} m, ||e||={rmse_muse_norm:.4f} m"
+    # )
+    # print(
+    #     f"  IEKF: ex={rmse_ik_xyz[0]:.4f} m, ey={rmse_ik_xyz[1]:.4f} m, "
+    #     f"ez={rmse_ik_xyz[2]:.4f} m, ||e||={rmse_ik_norm:.4f} m"
+    # )
+    # print(
+    #     f"  IS:   ex={rmse_sm_xyz[0]:.4f} m, ey={rmse_sm_xyz[1]:.4f} m, "
+    #     f"ez={rmse_sm_xyz[2]:.4f} m, ||e||={rmse_sm_norm:.4f} m"
+    # )
 
     # Normalize quats (safety)
     q_gt_i = q_gt_i / np.linalg.norm(q_gt_i, axis=1, keepdims=True)
@@ -516,7 +516,7 @@ def main():
     fig1.savefig("position.pdf", format="pdf", bbox_inches="tight")
     fig2.savefig("velocity.pdf", format="pdf", bbox_inches="tight")
     fig2_zoom.savefig("velocity_zoomed.pdf", format="pdf", bbox_inches="tight")
-    fig3.savefig("orientation_bad_init.pdf", format="pdf", bbox_inches="tight")
+    fig3.savefig("orientation.pdf", format="pdf", bbox_inches="tight")
     fig4.savefig("trajectory_error_norm.pdf", format="pdf", bbox_inches="tight")
     fig5.savefig("velocity_error_norm.pdf", format="pdf", bbox_inches="tight")
     fig_runtime.savefig("runtime_comparison.pdf", format="pdf", bbox_inches="tight")
