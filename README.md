@@ -46,7 +46,7 @@ js, contacts
 timestamp, px, py, pz, qx, qy, qz, vx, vy, vz
 ```
 You can download `sensor_data.csv` and `grountruth.csv` from this [link](https://drive.google.com/drive/folders/13FPdESYe10gAHfvmjsgJCjq7s2pjQzI-?usp=sharing).
-For this project you need to copy these files in `data/anymalD_grandtour`
+For this project you need to copy these files in [`data/anymalD_grandtour`](https://github.com/iit-DLSLab/state_estimation_benchmark/tree/main/data/anymalD_grandtour)
 
 ## Step 1 - Dataset sanity check
 From the root directory, build and run the dataset inspection tool:
