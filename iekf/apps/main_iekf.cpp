@@ -133,8 +133,8 @@ private:
 };
 
 // -----------------------------
-// Remap: from (sensor row + feet row) -> structure IS
-// Original main uses:
+//  Remap: from (sensor row + feet row) -> structure IS
+//  Original main uses:
 //  Sensor_(0:2)=gyro, Sensor_(3:5)=acc, Sensor_(6:17)=jnt_pos, Sensor_(18:29)=jnt_vel
 //  Contact_ (4x1 bool)
 //  forkin_set_.forkin_position (size 4) and forkin_set_.forkin_jacobian (size 4)

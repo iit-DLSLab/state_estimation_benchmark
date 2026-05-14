@@ -37,7 +37,6 @@ def first_existing_path(*candidates):
 
 
 GT_FILE = first_existing_path(
-    # DATASET_ROOT / "groundtruth_rotated_vel.csv",
     DATASET_ROOT / "groundtruth.csv",
 )
 MUSE_FILE = DATASET_ROOT / "muse" / "fused_state.csv"
@@ -53,6 +52,7 @@ IS_COLOR = "tab:red"
 # Umeyama alignment (est -> GT)
 # position: p_gt ≈ R_align @ p_est + t_align
 # orientation: R_wb_gt ≈ R_align * R_wb_est
+# these values can be derived from the evo tool: https://github.com/michaelgrupp/evo
 # =======================
 ALIGN = {
     "muse": {
@@ -323,20 +323,6 @@ def main():
     rmse_muse_xyz, rmse_muse_norm = compute_rmse(e_muse)
     rmse_sm_xyz, rmse_sm_norm = compute_rmse(e_sm)
     rmse_ik_xyz, rmse_ik_norm = compute_rmse(e_ik)
-
-    # print("Trajectory RMSE from aligned, time-synchronized, zero-start trajectories:")
-    # print(
-    #     f"  MUSE: ex={rmse_muse_xyz[0]:.4f} m, ey={rmse_muse_xyz[1]:.4f} m, "
-    #     f"ez={rmse_muse_xyz[2]:.4f} m, ||e||={rmse_muse_norm:.4f} m"
-    # )
-    # print(
-    #     f"  IEKF: ex={rmse_ik_xyz[0]:.4f} m, ey={rmse_ik_xyz[1]:.4f} m, "
-    #     f"ez={rmse_ik_xyz[2]:.4f} m, ||e||={rmse_ik_norm:.4f} m"
-    # )
-    # print(
-    #     f"  IS:   ex={rmse_sm_xyz[0]:.4f} m, ey={rmse_sm_xyz[1]:.4f} m, "
-    #     f"ez={rmse_sm_xyz[2]:.4f} m, ||e||={rmse_sm_norm:.4f} m"
-    # )
 
     # Normalize quats (safety)
     q_gt_i = q_gt_i / np.linalg.norm(q_gt_i, axis=1, keepdims=True)
