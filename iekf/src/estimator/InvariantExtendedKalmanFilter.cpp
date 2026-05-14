@@ -141,7 +141,7 @@ void InvariantExtendedKalmanFilter::new_measurement(Eigen::Matrix<double, num_z,
                                                     Eigen::Matrix<bool, 4, 1> Contact_i,
                                                     const MEAS_FORWARD_KINEMATICS &forkin_set)
 {
-    // salvo misure nel buffer corrente (frame_count può essere 0 o 1)
+    // Store measurements in the current buffer (frame_count can be 0 or 1)
     int idx = std::min(frame_count, 1);
     IMU_Gyro[idx] = Sensor_i.block(0,0,3,1);
     IMU_Acc[idx]  = Sensor_i.block(3,0,3,1);
@@ -151,29 +151,29 @@ void InvariantExtendedKalmanFilter::new_measurement(Eigen::Matrix<double, num_z,
 
     CONTACT_t[idx] = Contact_i;
 
-    // salva forkin (assicurati che forkin_meas_ sia sized >= 2)
+    // Store forward-kinematics data (ensure forkin_meas_ has size >= 2)
     forkin_meas_[idx] = forkin_set;
 
     imu_measurement << IMU_Gyro[idx], IMU_Acc[idx];
 
-    // ---- Se primo frame: inizializza slip/hard contact e esci
+    // ---- If this is the first frame: initialize slip/hard contact and return
     if (frame_count == 0) {
         for (int k = 0; k < 4; ++k) {
             SLIP_t[0](k) = false;
             HARD_CONTACT_t[0](k) = CONTACT_t[0](k);
-            // d_v[0] può rimanere zero
+            // d_v[0] can remain zero
             d_v[0].block<3,1>(3*k,0).setZero();
         }
         return;
     }
 
-    // ---------- altrimenti propago (questo è solo calcolo di d_v predetta) ----------
+    // ---------- otherwise propagate (this only computes predicted d_v) ----------
     const Eigen::Vector3d bg = filter.getState().getGyroscopeBias();
     const Eigen::Vector3d ba = filter.getState().getAccelerometerBias();
     const Eigen::Matrix3d R0 = filter.getState().getRotation();
     const Eigen::Vector3d v0 = filter.getState().getVelocity();
 
-    // predicted rotation/velocity using imu curr (usiamo idx corrente)
+    // Predicted rotation/velocity using current IMU data (use current idx)
     Eigen::Vector3d phi = (imu_measurement.block(0,0,3,1) - bg) * dt;
     Rotation_s[1] = R0 * Expm_Vec(phi);
     Eigen::JacobiSVD<Eigen::Matrix3d> svd(Rotation_s[1], Eigen::ComputeFullU | Eigen::ComputeFullV);
@@ -196,7 +196,7 @@ void InvariantExtendedKalmanFilter::new_measurement(Eigen::Matrix<double, num_z,
             + Rotation_s[1] * (Hat_so3(w_b) * p_b);
     }
 
-    // slip rejection come prima
+    // Slip rejection as before
     for (int p = 0; p <= 1; ++p) {
         for (int k = 0; k < estimator_common_struct_.leg_no; ++k) {
             if (slip_rejection_mode && CONTACT_t[p](k) &&
@@ -212,13 +212,13 @@ void InvariantExtendedKalmanFilter::new_measurement(Eigen::Matrix<double, num_z,
 
 void InvariantExtendedKalmanFilter::Propagate_Correct()
 {
-    // Propagate only se ho un frame precedente (come prima)
+    // Propagate only if there is a previous frame (as before)
     if (frame_count > 0) {
         filter.Propagate(imu_measurement_prev, dt, Variable_Contact_Cov(0));
     }
     imu_measurement_prev = imu_measurement;
 
-    // set contacts: usa frame corrente (frame_count può essere 0 o 1), scegli idx sicuro
+    // Set contacts: use current frame (frame_count can be 0 or 1), choose a safe idx
     int idx = std::min(frame_count, 1);
     std::vector<std::pair<int,bool>> contacts;
     for (int i = 0; i < 4; ++i) {
@@ -226,7 +226,7 @@ void InvariantExtendedKalmanFilter::Propagate_Correct()
     }
     filter.setContacts(contacts);
 
-    // build kinematic measurements using il buffer idx (quello attuale)
+    // Build kinematic measurements using buffer idx (current one)
     inekf::vectorKinematics measured_kinematics;
     measured_kinematics.reserve(4);
 
