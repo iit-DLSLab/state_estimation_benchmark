@@ -80,7 +80,7 @@ int main(int argc, char** argv)
             "LF_FOOT", "RF_FOOT", "LH_FOOT", "RH_FOOT"
         };
 
-        // Joint names in the SAME ORDER as your CSV:
+        // Joint names in the SAME ORDER as CSV:
         // LF(HAA,HFE,KFE), RF(...), LH(...), RH(...)
         const std::vector<std::string> joint_names = {
             "LF_HAA", "LF_HFE", "LF_KFE",
