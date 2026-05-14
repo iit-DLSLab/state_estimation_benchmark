@@ -170,38 +170,7 @@ int main(int argc, char** argv)
             pinocchio::forwardKinematics(model, data, q, v);
             pinocchio::updateFramePlacements(model, data);
 
-            // // // OLD
-            // // // Foot positions (root frame)
-            // Eigen::Vector3d p_foot[4];
-            // for (int leg = 0; leg < 4; ++leg) {
-            //     p_foot[leg] = data.oMf[foot_ids[leg]].translation();
-            // }
-
-            // // Jacobians and foot velocities
-            // Eigen::Matrix3d Jleg[4];
-            // Eigen::Vector3d vfoot[4];
-
-            // for (int leg = 0; leg < 4; ++leg) {
-            //     pinocchio::computeFrameJacobian(
-            //         model, data, q, foot_ids[leg],
-            //         pinocchio::ReferenceFrame::LOCAL, J6);
-
-            //     const Eigen::MatrixXd Jv_all = J6.topRows<3>(); // 3 x nv
-
-            //     // slice 3 cols -> 3x3
-            //     for (int r = 0; r < 3; ++r) {
-            //         for (int c = 0; c < 3; ++c) {
-            //             Jleg[leg](r,c) = Jv_all(r, leg_v_cols[leg][c]);
-            //         }
-            //     }
-
-            //     Eigen::Vector3d dq_leg;
-            //     dq_leg << s.dq[leg*3 + 0], s.dq[leg*3 + 1], s.dq[leg*3 + 2];
-            //     vfoot[leg] = Jleg[leg] * dq_leg;
-            // }
-            // // OLD
-
-            // NEW: compute foot velocity as J*v (not just leg joints, but all)
+            // Compute foot velocity as J*v
             // Jacobians and foot velocities
             // Foot positions (world == base, but expressed in WORLD-aligned coords)
             Eigen::Vector3d p_foot[4];
@@ -238,15 +207,12 @@ int main(int argc, char** argv)
                     }
                 }
             }
-            // NEW
+            
 
-            // NEW FOR SMOOTHER
-            // Pre-req: hai model, data, q, v (opzionale), e frame ids dei piedi foot_ids[4]
-            // e sai l'id del frame "base" (o "base_link") nel modello:
-            const pinocchio::FrameIndex base_fid = model.getFrameId("base"); // o "base_link"
+            const pinocchio::FrameIndex base_fid = model.getFrameId("base"); // or "base_link"
 
             // 1) Kinematics
-            pinocchio::forwardKinematics(model, data, q, v);               // v solo se ce l'hai
+            pinocchio::forwardKinematics(model, data, q, v);               
             pinocchio::computeJointJacobians(model, data, q);
             pinocchio::updateFramePlacements(model, data);
 
@@ -295,11 +261,7 @@ int main(int argc, char** argv)
 
             Eigen::Vector3d vfoot_b = Jleg_b[leg] * dq_leg;
 
-            // ora p_foot_b[leg], Jleg_b[leg], vfoot_b sono coerenti "in base"
             }
-
-            // NEW FOR SMOOTHER
-
 
             // Write row
             out << s.t;
