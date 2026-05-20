@@ -8,6 +8,9 @@ This repository provides an offline benchmarking pipeline for quadruped state es
 
 The CSV datasets are generated from the [ANYmal GrandTour dataset](https://grand-tour.leggedrobotics.com/dataset), specifically from the rosbags of sequence **CYN-1**.
 
+<img width="4122" height="737" alt="github_benchmark" src="https://github.com/user-attachments/assets/bbe08f4d-3704-4e91-8683-a350daa78ea2" />
+
+
 
 
 ## Dependencies
