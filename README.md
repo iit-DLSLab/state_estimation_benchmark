@@ -1,5 +1,10 @@
-# State Estimation Benchmark
-This repository provides an offline benchmarking pipeline for quadruped state estimation using CSV datasets (proprioceptive measurements and ground truth).
+<h1 align="center"> A Proprioceptive-Only Benchmark for Quadruped State Estimation: ATE, RPE, and Runtime Trade-offs Between Filters and Smoothers </h1>
+<h3 align="center"> Ylenia Nisticò, João Carlos Virgolino Soares, Joan Solà, Claudio Semini</h3>
+<h4 align="center"> Paper available on ArXiv (https://arxiv.org/abs/2605.11674) </h4>
+
+##
+
+This repository provides an offline benchmarking pipeline for quadruped state estimation using CSV datasets (proprioceptive measurements and ground truth). It provides the data and the code to replicate the results presented in the paper. 
 
 The CSV datasets are generated from the [ANYmal GrandTour dataset](https://grand-tour.leggedrobotics.com/dataset), specifically from the rosbags of sequence **CYN-1**.
 
@@ -38,8 +43,7 @@ If you prefer to install manually, the full list of dependencies is:
 ## Data format
 `sensor_data.csv` is a CSV file containing proprioceptive measurements. Its format is:
 ```
-timestamp, imu_wx, imu_wy, imu_wz, imu_ax, imu_ay, imu_az,
-js, contacts
+timestamp, imu_wx, imu_wy, imu_wz, imu_ax, imu_ay, imu_az, js, contacts
 ```
 `groundtruth.csv` is a CSV file containing ground-truth data:
 ```
