@@ -1,7 +1,15 @@
-# State Estimation Benchmark
-This repository provides an offline benchmarking pipeline for quadruped state estimation using CSV datasets (proprioceptive measurements and ground truth).
+<h1 align="center"> A Proprioceptive-Only Benchmark for Quadruped State Estimation: ATE, RPE, and Runtime Trade-offs Between Filters and Smoothers </h1>
+<h3 align="center"> Ylenia Nisticò, João Carlos Virgolino Soares, Joan Solà, Claudio Semini</h3>
+<h4 align="center"> Paper available on ArXiv (https://arxiv.org/abs/2605.11674) </h4>
+
+##
+
+This repository provides an offline benchmarking pipeline for quadruped state estimation using CSV datasets (proprioceptive measurements and ground truth). It provides the data and the code to replicate the results presented in the paper. 
 
 The CSV datasets are generated from the [ANYmal GrandTour dataset](https://grand-tour.leggedrobotics.com/dataset), specifically from the rosbags of sequence **CYN-1**.
+
+<img width="4122" height="737" alt="github_benchmark" src="https://github.com/user-attachments/assets/bbe08f4d-3704-4e91-8683-a350daa78ea2" />
+
 
 
 
@@ -38,16 +46,17 @@ If you prefer to install manually, the full list of dependencies is:
 ## Data format
 `sensor_data.csv` is a CSV file containing proprioceptive measurements. Its format is:
 ```
-timestamp, imu_wx, imu_wy, imu_wz, imu_ax, imu_ay, imu_az,
-js, contacts
+timestamp, imu_wx, imu_wy, imu_wz, imu_ax, imu_ay, imu_az, js, contacts
 ```
 `groundtruth.csv` is a CSV file containing ground-truth data:
 ```
 timestamp, px, py, pz, qx, qy, qz, vx, vy, vz
 ```
+You can download `sensor_data.csv` and `grountruth.csv` from this [link](https://drive.google.com/drive/folders/13FPdESYe10gAHfvmjsgJCjq7s2pjQzI-?usp=sharing).
+For this project you need to copy these files in [`data/anymalD_grandtour`](https://github.com/iit-DLSLab/state_estimation_benchmark/tree/main/data/anymalD_grandtour)
 
 ## Step 1 - Dataset sanity check
-Build and run the dataset inspection tool:
+From the root directory, build and run the dataset inspection tool:
 ```
 cd data_process
 mkdir -p build && cd build
@@ -74,7 +83,7 @@ Build and run:
 Output: `data/anymalD_grandtour/feet_kinematics.csv`
 
 ## Step 3 - Run MUSE 
-Build and run MUSE:
+From the root directory, build and run MUSE:
 ```
 cd muse
 mkdir -p build && cd build
@@ -82,45 +91,43 @@ cmake ..
 make -j$(nproc)
 ./main_muse
 ```
-or, since MUSE is a modular state estimator, we provide executables for each single modules. They can be run also separately:
+<!-- or, since MUSE is a modular state estimator, we provide executables for each single modules. They can be run also separately:
 ```
-./main_attitude_estimation
+./main_attitude
 ./main_leg_odometry
-./sensor_fusion
-```
+./main_sensor_fusion
+``` -->
 Default input dataset root: `data/anymalD_grandtour`
 
 Generated output:
 - `data/anymalD_grandtour/muse/fused_state.csv`
+- `data/anymalD_grandtour/muse/attitude_estimate.csv`
+- `data/anymalD_grandtour/muse/leg_odometry.csv`
 
-Generated outputs if the modules are run separately:
+<!-- Generated outputs if the modules are run separately:
 - `data/anymalD_grandtour/muse/attitude_estimate_muse.csv`
 - `data/anymalD_grandtour/muse/leg_odometry.csv`
-- `data/anymalD_grandtour/muse/fused_state.csv`
+- `data/anymalD_grandtour/muse/fused_state.csv` -->
 
 ## Step 4 - Run IEKF
-Build and run IEKF:
+From the root directory, build and run IEKF:
 ```
 cd iekf
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
-
-# optional: pass a custom dataset root as first argument
 ./main_iekf
 ```
 Generated output:
 - `data/anymalD_grandtour/iekf/fused_state.csv`
 
 ## Step 5 - Run Invariant Smoother
-Build and run the invariant smoother:
+From the root directory, build and run the invariant smoother:
 ```
 cd invariant_smoother
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
-
-# optional: pass a custom dataset root as first argument
 ./main_invariant_smoother
 ```
 Generated output:

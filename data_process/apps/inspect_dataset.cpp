@@ -10,7 +10,7 @@ int main(int argc, char** argv)
     const std::string gt_csv     = root + "/groundtruth.csv";
 
     try {
-        auto meas = benchmark::loadMeasurements(sensor_csv, 12); // cambia num_joints se diverso
+        auto meas = benchmark::loadMeasurements(sensor_csv, 12);
         auto gt   = benchmark::loadGroundTruth(gt_csv);
 
         std::cout << "Loaded measurements: " << meas.size() << "\n";

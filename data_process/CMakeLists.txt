@@ -4,7 +4,7 @@ project(data_process LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Importa common
+# Import common
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../common common_build)
 
 find_package(Eigen3 REQUIRED)
@@ -25,7 +25,7 @@ target_link_libraries(precompute_feet_kinematics PRIVATE
   pinocchio::pinocchio
 )
 
-# Include (se ti serve altro oltre a seb_common)
+# Include paths (if you need more than seb_common)
 target_include_directories(inspect_dataset PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/../common/include
 )
