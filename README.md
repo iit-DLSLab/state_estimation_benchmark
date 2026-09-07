@@ -52,6 +52,14 @@ timestamp, imu_wx, imu_wy, imu_wz, imu_ax, imu_ay, imu_az, js, contacts
 ```
 timestamp, px, py, pz, qx, qy, qz, vx, vy, vz
 ```
+The joint states (`js`) are a 24-element vector `[q, dq]`, where `q` (positions) and `dq` (velocities) both follow this joint order:
+`LF_HAA, LF_HFE, LF_KFE, RF_HAA, RF_HFE, RF_KFE, LH_HAA, LH_HFE, LH_KFE, RH_HAA, RH_HFE, RH_KFE`
+For `contacts`, 1 means foot in contact, 0 means foot in swing. The order is:
+LF | RF | LH | RH |
+---------------------|---------------------|---------------------|---------------------|
+0 or 1 | 0 or 1 | 0 or 1 | 0 or 1 |
+
+
 You can download `sensor_data.csv` and `grountruth.csv` from this [link](https://drive.google.com/drive/folders/13FPdESYe10gAHfvmjsgJCjq7s2pjQzI-?usp=sharing).
 For this project you need to copy these files in [`data/anymalD_grandtour`](https://github.com/iit-DLSLab/state_estimation_benchmark/tree/main/data/anymalD_grandtour)
 
