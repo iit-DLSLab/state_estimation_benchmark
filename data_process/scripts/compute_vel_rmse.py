@@ -79,12 +79,14 @@ def align_records(gt: List[VelRec], est: List[VelRec]) -> Tuple[List[VelRec], Li
     if not gt or not est:
         raise ValueError("GT and EST records must both be non-empty")
 
-    gt_sorted = sorted(gt, key=lambda r: r[0])
+    gt_sorted_with_duplicates = sorted(gt, key=lambda r: r[0])
+    gt_sorted: List[VelRec] = []
+    for record in gt_sorted_with_duplicates:
+        if not gt_sorted or record[0] != gt_sorted[-1][0]:
+            gt_sorted.append(record)
+
     est_sorted = sorted(est, key=lambda r: r[0])
     gt_times = [r[0] for r in gt_sorted]
-
-    if any(t1 >= t2 for t1, t2 in zip(gt_times, gt_times[1:])):
-        raise ValueError("GT timestamps must be unique")
 
     gt_aligned: List[VelRec] = []
     est_aligned: List[VelRec] = []
