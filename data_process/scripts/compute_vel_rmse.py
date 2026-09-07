@@ -2,12 +2,13 @@
 
 import csv
 import math
+from bisect import bisect_left
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 
-VelRec = Tuple[Optional[float], float, float, float]  # (t, vx, vy, vz)
-TIME_CANDIDATES = ("t", "time", "timestamp", "stamp")
+VelRec = Tuple[float, float, float, float]  # (t, vx, vy, vz)
+TIME_CANDIDATES = ("t_abs", "t", "time", "timestamp", "stamp")
 
 # Dataset location (relative to repo root)
 DATASET_DIR = "data/anymalD_grandtour"
@@ -32,7 +33,7 @@ ROT_IS = (
 )
 
 
-def parse_float(value: str) -> Optional[float]:
+def parse_float(value: str) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -53,35 +54,68 @@ def read_velocity_csv(path: Path) -> List[VelRec]:
                 raise ValueError(f"{path} is missing required column '{req}'")
 
         time_col = next((c for c in TIME_CANDIDATES if c in headers), None)
+        if time_col is None:
+            candidates = ", ".join(TIME_CANDIDATES)
+            raise ValueError(
+                f"{path} is missing a timestamp column (expected one of: {candidates})"
+            )
 
         for row in reader:
+            t = parse_float(row.get(time_col, ""))
             vx = parse_float(row.get("vx", ""))
             vy = parse_float(row.get("vy", ""))
             vz = parse_float(row.get("vz", ""))
-            if vx is None or vy is None or vz is None:
+            if t is None or vx is None or vy is None or vz is None:
                 continue
 
-            t = parse_float(row.get(time_col, "")) if time_col else None
             records.append((t, vx, vy, vz))
 
     if not records:
-        raise ValueError(f"No valid velocity rows found in {path}")
+        raise ValueError(f"No valid timestamped velocity rows found in {path}")
     return records
 
 
 def align_records(gt: List[VelRec], est: List[VelRec]) -> Tuple[List[VelRec], List[VelRec], str]:
-    gt_has_time = all(r[0] is not None for r in gt)
-    est_has_time = all(r[0] is not None for r in est)
+    if not gt or not est:
+        raise ValueError("GT and EST records must both be non-empty")
 
-    if gt_has_time and est_has_time:
-        gt_map = {round(r[0], 9): r for r in gt if r[0] is not None}
-        est_map = {round(r[0], 9): r for r in est if r[0] is not None}
-        common_t = sorted(set(gt_map.keys()) & set(est_map.keys()))
-        if len(common_t) > 1:
-            return [gt_map[t] for t in common_t], [est_map[t] for t in common_t], "timestamp"
+    gt_sorted = sorted(gt, key=lambda r: r[0])
+    est_sorted = sorted(est, key=lambda r: r[0])
+    gt_times = [r[0] for r in gt_sorted]
 
-    n = min(len(gt), len(est))
-    return gt[:n], est[:n], "index"
+    if any(t1 >= t2 for t1, t2 in zip(gt_times, gt_times[1:])):
+        raise ValueError("GT timestamps must be unique")
+
+    gt_aligned: List[VelRec] = []
+    est_aligned: List[VelRec] = []
+
+    for est_record in est_sorted:
+        t = est_record[0]
+        if t < gt_times[0] or t > gt_times[-1]:
+            continue
+
+        right = bisect_left(gt_times, t)
+        if right < len(gt_sorted) and gt_times[right] == t:
+            gt_record = gt_sorted[right]
+        else:
+            left = right - 1
+            t0, vx0, vy0, vz0 = gt_sorted[left]
+            t1, vx1, vy1, vz1 = gt_sorted[right]
+            alpha = (t - t0) / (t1 - t0)
+            gt_record = (
+                t,
+                vx0 + alpha * (vx1 - vx0),
+                vy0 + alpha * (vy1 - vy0),
+                vz0 + alpha * (vz1 - vz0),
+            )
+
+        gt_aligned.append(gt_record)
+        est_aligned.append(est_record)
+
+    if not gt_aligned:
+        raise ValueError("GT and EST timestamp ranges do not overlap")
+
+    return gt_aligned, est_aligned, "timestamp interpolation (GT -> EST)"
 
 
 def mat3_vec3_mul(R, v):
