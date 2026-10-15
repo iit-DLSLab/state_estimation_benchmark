@@ -106,6 +106,12 @@ class factor_info {
 
   int meas_para_size;
 
+  // Duration [s] of the propagation interval from this frame to the next one.
+  // Unused by the IEKF; kept so that this class stays identical to the copy in
+  // invariant_smoother/include/invariant_smoother/estimator/RobotState_Smoother.hpp
+  // (both libraries are linked into the online ROS 2 node).
+  double dt_interval = 0.0;
+
 };
 
 typedef struct _ROBOT_STATES_PSEUDO_ {

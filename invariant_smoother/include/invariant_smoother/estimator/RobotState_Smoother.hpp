@@ -106,6 +106,10 @@ class factor_info {
 
   int meas_para_size;
 
+  // Duration [s] of the propagation interval from this frame to the next one.
+  // Only used when InvariantSmoother::use_per_interval_dt is enabled.
+  double dt_interval = 0.0;
+
 };
 
 typedef struct _ROBOT_STATES_PSEUDO_ {

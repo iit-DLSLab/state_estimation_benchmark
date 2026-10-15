@@ -15,6 +15,7 @@
 #include <eigen3/Eigen/Geometry>
 #include <iostream>
 #include <fstream>
+#include <vector>
 
 // Necessaries
 #include "invariant_smoother/estimator/Estimator_Parameters.hpp"
@@ -67,6 +68,8 @@ class Inv_Factors {
 
   bool marginalization_flag = false;
   bool preintegration_mode_ = false;
+  // See InvariantSmoother::use_per_interval_dt.
+  bool use_per_interval_dt_ = false;
 
   void Batch_Initialize(ROBOT_STATES *_RS, const ROBOT_STATES &RS_Prior,
                         const Eigen::Matrix<double, Eigen::Dynamic, 1> &_Estimation_Z,
@@ -147,7 +150,7 @@ class InvariantSmoother {
   Eigen::Matrix<double, Eigen::Dynamic, 1> delta_Zeta_Xi; // delta_bias_gyro, delta_bias_acc, delta_orientation, delta_velocity, delta_position, delta_foot_position
   Eigen::Matrix<double, Eigen::Dynamic, 1> perturbation; // delta_bias_gyro, delta_bias_acc, delta_orientation, delta_velocity, delta_position, delta_foot_position
 
-  Eigen::Matrix<double, num_z * (WINDOW_SIZE + 1), 1> Estimation_Z;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Estimation_Z; // num_z * (window_size + 1)
 
   Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> Marginalized_H;
   Eigen::Matrix<double, Eigen::Dynamic, 1> Marginalized_b;
@@ -211,13 +214,30 @@ class InvariantSmoother {
   double dt = 0.005;
   Eigen::Matrix<double,3,1> gravity;
 
-  // Estimated State Values Window Buffer
-  ROBOT_STATES RS[WINDOW_SIZE + 1];
+  // Fixed-lag window length (number of propagation factors kept in the window).
+  // Defaults to WINDOW_SIZE (original compile-time value); may be changed before
+  // Initialize(), which (re)allocates the window buffers below.
+  int window_size = WINDOW_SIZE;
+
+  // When false (default, original behaviour) every propagation factor in the
+  // window uses the single scalar estimator_common_struct_.dt of the latest step.
+  // When true, each factor uses the duration of its own interval, recorded in
+  // factor_info::dt_interval from the member `dt` at the time the frame was added.
+  bool use_per_interval_dt = false;
+
+  // Estimated State Values Window Buffer (size window_size + 1)
+  std::vector<ROBOT_STATES> RS;
   ROBOT_STATES RS_Pri;
 
-  std::vector<double> contact_score_array[WINDOW_SIZE + 1];
+  std::vector<std::vector<double>> contact_score_array;
 
-  factor_info fac_info[WINDOW_SIZE + 1];
+  std::vector<factor_info> fac_info;
+
+  // Scratch copy of RS used by the backtracking line search (avoids per-iteration allocation).
+  std::vector<ROBOT_STATES> RS_scratch_;
+
+  // Allocates and zero-fills the window buffers for the current window_size.
+  void AllocateWindow();
 
   std::vector<Eigen::Matrix<double, num_z, 1>> z_buffer_;
 

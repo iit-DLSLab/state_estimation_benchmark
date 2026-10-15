@@ -10,6 +10,9 @@
 
 
 #include "invariant_smoother/estimator/InvariantSmoother.hpp"
+
+#include <stdexcept>
+#include <vector>
 #include <string>
 #include <utility>
 
@@ -676,6 +679,11 @@ void Inv_Factors::Invariant_Propagation_Factor(int i,
 											   Eigen::Matrix<double, Eigen::Dynamic, 1> &gradient, double &cost) {
 
   int j = i + 1;
+
+  // Interval length of this propagation factor. By default every factor uses the
+  // single dt of the latest step (original behaviour, assumes uniform sampling).
+  // With use_per_interval_dt_ the measured duration of interval i -> i+1 is used.
+  const double dt = (use_per_interval_dt_ && fac_info[i].dt_interval > 0.0) ? fac_info[i].dt_interval : this->dt;
 
   Eigen::MatrixXd A;
   A.resize(fac_info[i].prop_res_size, fac_info[i].prop_res_size);
@@ -1457,7 +1465,7 @@ std::cout << "[IS] file... " << file_path << "/sensordata.txt" << std::endl;
 
 Eigen::MatrixXd InvariantSmoother::readMatrix(const char *filename) {
   int cols = 0, rows = 0;
-  double buff[((WINDOW_SIZE + 1) * 100) * ((WINDOW_SIZE + 1) * 100)];
+  std::vector<double> buff(static_cast<std::size_t>((window_size + 1) * 100) * static_cast<std::size_t>((window_size + 1) * 100));
 
   // Read numbers from file into buffer.
   std::ifstream infile;
@@ -1493,9 +1501,70 @@ Eigen::MatrixXd InvariantSmoother::readMatrix(const char *filename) {
   return result;
 };
 
+namespace {
+
+// The original implementation kept the window in fixed-size arrays of a
+// zero-initialised global object; reproduce that initial state explicitly.
+void ZeroRobotState(ROBOT_STATES &s) {
+  s.Rotation.setZero();
+  s.Velocity.setZero();
+  s.Position.setZero();
+  s.d.setZero();
+  s.d_v.setZero();
+  s.GPS_In = false;
+  s.Bias_Gyro.setZero();
+  s.Bias_Acc.setZero();
+  s.Contact.setZero();
+  s.Hard_Contact.setZero();
+  s.Slip.setZero();
+  s.contact_leg_num = 0;
+  s.state_size = 0;
+  s.state_idx = 0;
+  s.para_size = 0;
+  s.para_idx = 0;
+}
+
+void ZeroFactorInfo(factor_info &f) {
+  f.Z.setZero();
+  f.leg_info.clear();
+  f.X_GPS.setZero();
+  f.sqrt_GPS.setZero();
+  f.z_buffer_.clear();
+  f.Mi.resize(0, 0);
+  f.Mj.resize(0, 0);
+  f.prop_primitive_sqrt_info.resize(0, 0);
+  f.shared_contact = 0;
+  f.prop_para0_size = 0;
+  f.prop_para1_size = 0;
+  f.prop_res_size = 0;
+  f.meas_para_size = 0;
+  f.dt_interval = 0.0;
+}
+
+}  // namespace
+
+void InvariantSmoother::AllocateWindow() {
+  if (window_size < 1) {
+	throw std::invalid_argument("InvariantSmoother: window_size must be >= 1");
+  }
+  const std::size_t n = static_cast<std::size_t>(window_size) + 1;
+  RS.resize(n);
+  RS_scratch_.resize(n);
+  fac_info.resize(n);
+  contact_score_array.assign(n, std::vector<double>());
+  for (std::size_t k = 0; k < n; ++k) {
+	ZeroRobotState(RS[k]);
+	ZeroRobotState(RS_scratch_[k]);
+	ZeroFactorInfo(fac_info[k]);
+  }
+  Estimation_Z.setZero(num_z * static_cast<Eigen::Index>(n));
+}
+
 void InvariantSmoother::Initialize(double _dt,
 								   EstimatorCovariances estimator_covariances,
 								   Eigen::Matrix<double, 16, 1> &initial_condition) {
+
+  AllocateWindow();
 
   sliding_window_flag = false;
   marginalization_flag = false;
@@ -1831,6 +1900,7 @@ void InvariantSmoother::new_measurement(Eigen::Matrix<double, num_z, 1> Sensor_i
 	prop_primitive_sqrt_info.block<3, 3>(0, 0) = estimator_common_struct_.estimator_covariances_.SQRT_INFO_Covariance_Bias_Gyro;
 	prop_primitive_sqrt_info.block<3, 3>(3, 3) = estimator_common_struct_.estimator_covariances_.SQRT_INFO_Covariance_Bias_Acc;
 	fac_info[i].prop_primitive_sqrt_info = prop_primitive_sqrt_info;
+	fac_info[i].dt_interval = dt;
   }
   //measurement---------------------------------------------------------------
   fac_info[j].meas_para_size = 9 + 3 * RS[j].contact_leg_num;
@@ -2172,6 +2242,7 @@ void InvariantSmoother::new_measurement(Eigen::Matrix<double, num_z, 1> Sensor_i
 	prop_primitive_sqrt_info.block(3,3,3,3) = estimator_common_struct_.estimator_covariances_.SQRT_INFO_Covariance_Bias_Acc;
 	fac_info[i].prop_primitive_sqrt_info.resizeLike(prop_primitive_sqrt_info);
 	fac_info[i].prop_primitive_sqrt_info = prop_primitive_sqrt_info;
+	fac_info[i].dt_interval = dt;
 
 	if(prop_primitive_sqrt_info.inverse().hasNaN())
 	{
@@ -2259,7 +2330,7 @@ void InvariantSmoother::Optimization_Solve() {
 
 
 
-//    if(temp_count == WINDOW_SIZE){
+//    if(temp_count == window_size){
 //        Hessian_S.resize(RS[frame_count].para_idx+RS[frame_count].para_size,RS[frame_count].para_idx+RS[frame_count].para_size);
 //        Hessian_S.setZero();
 //    }
@@ -2286,20 +2357,21 @@ void InvariantSmoother::Optimization_Solve() {
   Inv_Factors factor;
 
   factor.preintegration_mode_ = preintegration_mode_;
+  factor.use_per_interval_dt_ = use_per_interval_dt;
 
 
 
   if (marginalization_flag) {
 
-	factor.Marg_Initialize(RS,
+	factor.Marg_Initialize(RS.data(),
 						   Estimation_Z.block(0, 0, num_z * (frame_count + 1), 1),
 						   Marginalized_H,
 						   Marginalized_Hessian,
 						   Marginalized_b,
 						   Marginalized_Gradient,
-						   fac_info,
+						   fac_info.data(),
 						   estimator_common_struct_);
-	factor.Marg_Update_n_Get_Gradient_Hess_Cost(0, RS, delta_Zeta_Xi, hessian, gradient, cost);
+	factor.Marg_Update_n_Get_Gradient_Hess_Cost(0, RS.data(), delta_Zeta_Xi, hessian, gradient, cost);
 
 
 
@@ -2330,7 +2402,7 @@ void InvariantSmoother::Optimization_Solve() {
 //		  hasnan = true;
 //
 //
-//		  factor.Marg_Initialize(RS,
+//		  factor.Marg_Initialize(RS.data(),
 //								 Estimation_Z.block(0, 0, num_z * (frame_count + 1), 1),
 //								 Marginalized_H,
 //								 Marginalized_Hessian,
@@ -2338,7 +2410,7 @@ void InvariantSmoother::Optimization_Solve() {
 //								 Marginalized_Gradient,
 //								 fac_info,
 //								 estimator_common_struct_);
-//		  factor.Marg_Update_n_Get_Gradient_Hess_Cost_Debug(0, RS, delta_Zeta_Xi, hessian, gradient, cost);
+//		  factor.Marg_Update_n_Get_Gradient_Hess_Cost_Debug(0, RS.data(), delta_Zeta_Xi, hessian, gradient, cost);
 //
 //
 //		  hasnan=false;
@@ -2359,7 +2431,7 @@ void InvariantSmoother::Optimization_Solve() {
 //		  hasnan = true;
 //
 //
-//		  factor.Marg_Initialize(RS,
+//		  factor.Marg_Initialize(RS.data(),
 //								 Estimation_Z.block(0, 0, num_z * (frame_count + 1), 1),
 //								 Marginalized_H,
 //								 Marginalized_Hessian,
@@ -2367,7 +2439,7 @@ void InvariantSmoother::Optimization_Solve() {
 //								 Marginalized_Gradient,
 //								 fac_info,
 //								 estimator_common_struct_);
-//		  factor.Marg_Update_n_Get_Gradient_Hess_Cost_Debug(0, RS, delta_Zeta_Xi, hessian, gradient, cost);
+//		  factor.Marg_Update_n_Get_Gradient_Hess_Cost_Debug(0, RS.data(), delta_Zeta_Xi, hessian, gradient, cost);
 //
 ////		  std::cout << "hessian: " << hessian << std::endl;
 ////
@@ -2380,7 +2452,7 @@ void InvariantSmoother::Optimization_Solve() {
 
 		Eigen::Matrix<double, -1, 1> delta_Zeta_Xi_temp;
 		delta_Zeta_Xi_temp.resizeLike(delta_Zeta_Xi);
-		ROBOT_STATES RS_temp[WINDOW_SIZE + 1];
+		std::vector<ROBOT_STATES> &RS_temp = RS_scratch_;
 		double cost_temp = 0; //should NOT be 0
 		double t = ALPHA; // test
 //                double t = 0.5;
@@ -2391,7 +2463,7 @@ void InvariantSmoother::Optimization_Solve() {
 
 		  perturbation = t * perturbation;
 
-		  for (int k = 0; k <= WINDOW_SIZE; k++) {
+		  for (int k = 0; k <= window_size; k++) {
 			RS_temp[k] = RS[k];
 		  }
 
@@ -2406,7 +2478,7 @@ void InvariantSmoother::Optimization_Solve() {
 			retract_manifold(0);
 		  }
 
-		  factor.Marg_Update_n_Get_Gradient_Hess_Cost(false, RS, delta_Zeta_Xi, hessian, gradient, cost_temp);
+		  factor.Marg_Update_n_Get_Gradient_Hess_Cost(false, RS.data(), delta_Zeta_Xi, hessian, gradient, cost_temp);
 		  backpropagate_count++;
 
 //cout<<"IS: cost at iter "<<iter<<" is "<<cost<<" and at backpropagate_count "<<backpropagate_count<<" is "<<cost_temp<<endl;
@@ -2419,7 +2491,7 @@ void InvariantSmoother::Optimization_Solve() {
 			  delta_Zeta_Xi.setZero();
 			}
 
-			for (int k = 0; k <= WINDOW_SIZE; k++) {
+			for (int k = 0; k <= window_size; k++) {
 			  RS[k] = RS_temp[k];
 			}
 
@@ -2428,7 +2500,7 @@ void InvariantSmoother::Optimization_Solve() {
 		  } else if (cost_temp > (cost)) {
 
 			delta_Zeta_Xi = delta_Zeta_Xi_temp;
-			for (int k = 0; k <= WINDOW_SIZE; k++) {
+			for (int k = 0; k <= window_size; k++) {
 			  RS[k] = RS_temp[k];
 			}
 
@@ -2458,7 +2530,7 @@ void InvariantSmoother::Optimization_Solve() {
 	  }
 
 	  //update_dv(0);
-	  factor.Marg_Update_n_Get_Gradient_Hess_Cost(0, RS, delta_Zeta_Xi, hessian, gradient, cost);
+	  factor.Marg_Update_n_Get_Gradient_Hess_Cost(0, RS.data(), delta_Zeta_Xi, hessian, gradient, cost);
 
 	  if ((iter > 1) && (((sqrt(pow(cost - cost_before, 2)) / cost_before) < Optimization_Epsilon)
 		  || (iter == Max_Iteration))) //Max_Itertation) )
@@ -2476,13 +2548,13 @@ void InvariantSmoother::Optimization_Solve() {
 
   } else {
 
-	factor.Batch_Initialize(RS,
+	factor.Batch_Initialize(RS.data(),
 							RS_Pri,
 							Estimation_Z.block(0, 0, num_z * (frame_count + 1), 1),
-							fac_info,
+							fac_info.data(),
 							estimator_common_struct_);
 
-	factor.Batch_Update_n_Get_Gradient_Hess_Cost(0, RS, hessian, gradient, cost);
+	factor.Batch_Update_n_Get_Gradient_Hess_Cost(0, RS.data(), hessian, gradient, cost);
 
 	for (int iter = 1; iter <= Max_Iteration; iter++) {
 
@@ -2498,7 +2570,7 @@ void InvariantSmoother::Optimization_Solve() {
 
 		Eigen::Matrix<double, -1, 1> delta_Zeta_Xi_temp;
 		delta_Zeta_Xi_temp.resizeLike(delta_Zeta_Xi);
-		ROBOT_STATES RS_temp[WINDOW_SIZE + 1];
+		std::vector<ROBOT_STATES> &RS_temp = RS_scratch_;
 		double cost_temp = 0; //should NOT be 0
 		double t = ALPHA; // test
 //                double t = 0.5;
@@ -2509,12 +2581,12 @@ void InvariantSmoother::Optimization_Solve() {
 		  delta_Zeta_Xi = t * delta_Zeta_Xi;
 
 		  delta_Zeta_Xi_temp = delta_Zeta_Xi;
-		  for (int k = 0; k <= WINDOW_SIZE; k++) {
+		  for (int k = 0; k <= window_size; k++) {
 			RS_temp[k] = RS[k];
 		  }
 		  retract_manifold(0);
 
-		  factor.Batch_Update_n_Get_Gradient_Hess_Cost(0, RS, hessian, gradient, cost_temp);
+		  factor.Batch_Update_n_Get_Gradient_Hess_Cost(0, RS.data(), hessian, gradient, cost_temp);
 		  backpropagate_count++;
 
 		  if (Max_backpropagate_num == 1000) {
@@ -2522,7 +2594,7 @@ void InvariantSmoother::Optimization_Solve() {
 		  } else if (backpropagate_count >= Max_backpropagate_num) {
 
 			delta_Zeta_Xi.setZero();
-			for (int k = 0; k <= WINDOW_SIZE; k++) {
+			for (int k = 0; k <= window_size; k++) {
 			  RS[k] = RS_temp[k];
 			}
 			//total_backppgn_number++;
@@ -2530,7 +2602,7 @@ void InvariantSmoother::Optimization_Solve() {
 		  } else if (cost_temp > (cost)) {
 
 			delta_Zeta_Xi = delta_Zeta_Xi_temp;
-			for (int k = 0; k <= WINDOW_SIZE; k++) {
+			for (int k = 0; k <= window_size; k++) {
 			  RS[k] = RS_temp[k];
 			}
 
@@ -2552,7 +2624,7 @@ void InvariantSmoother::Optimization_Solve() {
 	  }
 
 	  //update_dv(0);
-	  factor.Batch_Update_n_Get_Gradient_Hess_Cost(0, RS, hessian, gradient, cost);
+	  factor.Batch_Update_n_Get_Gradient_Hess_Cost(0, RS.data(), hessian, gradient, cost);
 
 
 //            if((iter>1) && (sqrt(pow(cost-cost_before,2))/cost_before<Optimization_Epsilon || iter == Max_Iteration)) //Max_Itertation) )
@@ -2577,14 +2649,14 @@ void InvariantSmoother::Optimization_Solve() {
 
 
   /// Schur Complement Method for Marginalization
-  if (frame_count == WINDOW_SIZE) {
+  if (frame_count == window_size) {
 
 	SAVE_BUFFER[idx_cost][time_count] = cost;
 
 	if (marginalization_flag) {
-	  factor.Marg_Update_n_Get_Gradient_Hess_Cost(true, RS, delta_Zeta_Xi, hessian, gradient, cost);
+	  factor.Marg_Update_n_Get_Gradient_Hess_Cost(true, RS.data(), delta_Zeta_Xi, hessian, gradient, cost);
 	} else {
-	  factor.Batch_Update_n_Get_Gradient_Hess_Cost(true, RS, hessian, gradient, cost);
+	  factor.Batch_Update_n_Get_Gradient_Hess_Cost(true, RS.data(), hessian, gradient, cost);
 	}
 
 
@@ -2802,10 +2874,10 @@ void InvariantSmoother::send_states(ROBOT_STATES &state_) {
 
 void InvariantSmoother::sliding_window() {
 
-  Estimation_Z.block(0, 0, num_z * WINDOW_SIZE, 1) = Estimation_Z.block(num_z, 0, num_z * WINDOW_SIZE, 1);
+  Estimation_Z.block(0, 0, num_z * window_size, 1) = Estimation_Z.block(num_z, 0, num_z * window_size, 1);
   delta_Zeta_Xi.setZero();
 
-  for (int i = 0; i < WINDOW_SIZE; i++) {
+  for (int i = 0; i < window_size; i++) {
 
 	std::swap(RS[i], RS[i + 1]);
 
@@ -2895,7 +2967,7 @@ void InvariantSmoother::SaveOneStep(int cnt) {
 
 	  for (int k = 0; k < 3; k++) {
 
-		if (cnt >= WINDOW_SIZE) {
+		if (cnt >= window_size) {
 		  SAVE_BUFFER[idx_ESTIMATED_dv + 3 * i + k][cnt] = RS[frame_count].d_v(3 * i + k);
 		}
 	  }
@@ -2981,8 +3053,8 @@ void InvariantSmoother::Onestep(Eigen::Matrix<double, num_z, 1> Sensor_i,
 
 //    temp_count++;
   frame_count++;
-  if (frame_count > WINDOW_SIZE) {
-	frame_count = WINDOW_SIZE;
+  if (frame_count > window_size) {
+	frame_count = window_size;
 	sliding_window_flag = true;
   }
   if (textfile_flag) {
@@ -3038,8 +3110,8 @@ void InvariantSmoother::Onestep(Eigen::Matrix<double, num_z, 1> Sensor_i,
 
 //    temp_count++;
   frame_count++;
-  if (frame_count > WINDOW_SIZE) {
-	frame_count = WINDOW_SIZE;
+  if (frame_count > window_size) {
+	frame_count = window_size;
 	sliding_window_flag = true;
   }
   if (textfile_flag) {

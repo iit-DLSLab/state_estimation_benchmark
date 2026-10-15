@@ -1,0 +1,155 @@
+# seb_online configuration for the Unitree Go2 (live node and bag replay).
+# Values must keep their type: write floating-point values with a decimal point.
+# Every parameter is read once, at configuration; runtime changes are rejected.
+/**:
+  ros__parameters:
+    # ------------------------------------------------------------------ robot
+    robot:
+      type: "go2"
+      urdf_path: ""            # empty: <seb_online share>/models/go2.urdf (copy of models/go2/go2.urdf)
+      base_frame: "base"
+      imu_frame: "imu"         # IMU placement read from the URDF (go2.urdf: xyz -0.02557 0 0.04232, rpy 0 0 0)
+      imu_xyz: [0.0, 0.0, 0.0] # used only if imu_frame is empty
+      imu_rpy: [0.0, 0.0, 0.0]
+      # Canonical order: legs LF, RF, LH, RH (= Unitree FL, FR, RL, RR); joints HAA, HFE, KFE (= hip, thigh, calf).
+      # Index into LowState.motor_state for each canonical joint. Unitree Go2 order is
+      # FR(0-2) FL(3-5) RR(6-8) RL(9-11). VALIDATE ON THE ROBOT (see docs/ROS2_ONLINE.md).
+      lowstate_motor_index: [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]
+      # Index into LowState.foot_force for each canonical leg (Go2 order FR, FL, RR, RL).
+      lowstate_foot_force_index: [1, 0, 3, 2]
+      urdf_joint_names: ["FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
+                         "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
+                         "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
+                         "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint"]
+      urdf_foot_frames: ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
+
+    # ------------------------------------------------------------------ input
+    input:
+      lowstate_topic: "/lowstate"
+      qos_depth: 10
+      qos_reliable: false      # BEST_EFFORT subscription (compatible with a RELIABLE publisher)
+
+    # ------------------------------------------------------------------ time base
+    time:
+      # receive_time : ROS clock when the message is received by this node (reception time,
+      #                includes the unknown robot->PC transport delay). Default.
+      # lowstate_tick: LowState.tick (robot MCU counter, 1 ms resolution) offset once to the ROS clock.
+      stamp_source: "receive_time"
+      tick_period_s: 0.001
+      time_jump_reset_s: 1.0
+
+    acquisition:
+      drop_duplicates: true    # exact re-deliveries (same tick, same payload) are dropped and logged
+      decimation: 1            # process one sample every N (skipped samples are logged, never silent)
+
+    # ------------------------------------------------------------------ contact detection (MUSE Go2 strategy)
+    contact:
+      threshold: 20.0          # raw Go2 foot-force units; stance if |foot_force| > threshold
+      use_hysteresis: false
+      threshold_low: 0.0       # with hysteresis: stance -> swing when |force| <= threshold_low
+      threshold_high: 20.0     # with hysteresis: swing -> stance when |force| > threshold_high
+      valid_min: -32768.0      # readings outside [valid_min, valid_max] are invalid (no contact)
+      valid_max: 32767.0
+
+    # ------------------------------------------------------------------ synchronisation and queues
+    sync:
+      capacity: 64             # samples waiting for their two worker results
+      worker_timeout_s: 0.02   # a sample without both results after this time is expired (logged)
+    queues:
+      worker_capacity: 64
+      estimator_capacity: 50   # 100 ms at 500 Hz
+      estimator_overflow_policy: "drop_oldest"   # drop_oldest | reject_newest
+
+    # ------------------------------------------------------------------ estimator
+    estimator:
+      type: "muse"             # muse | iekf | invariant_smoother  (exactly ONE estimator runs)
+      init_attitude: "gravity_aligned"   # gravity_aligned | identity (offline benchmark)
+      dt_mode: "measured"      # measured | offline_compat (regression only)
+      nominal_dt_s: 0.002      # dt given to Initialize(); not used for propagation in 'measured' mode
+      max_gap_s: 0.05          # a larger interval between processed samples re-initialises the estimator
+      max_input_age_s: 0.1     # inputs older than this (since reception) are dropped as stale; <= 0 disables
+      min_dt_s: 0.000001
+      max_speed_mps: 20.0      # divergence check (status INVALID + re-initialisation)
+      warmup_samples: 1
+
+    muse:                      # defaults = muse/apps/main_muse.cpp
+      ki: 0.02
+      kp: 10.0
+      attitude_P0: 1.0e-12
+      attitude_Q: 1.0e-15
+      attitude_R: 1.0e-6
+      fusion_P0: 1.0e-14
+      fusion_Q: 1.0e-14
+      fusion_R: 5.0e-16
+      gravity: 9.81
+      use_updated_attitude: true   # false = offline behaviour (attitude of the previous sample)
+
+    iekf:                      # defaults = iekf/apps/main_iekf.cpp (covariances as log10)
+      cov_exp:
+        gyro: -4.0
+        acc: -1.0
+        slip: -1.3
+        contact: -4.0
+        encoder: -5.0
+        bias_gyro: -10.0
+        bias_acc: -10.0
+        prior_orientation: -8.0
+        prior_velocity: -8.0
+        prior_position: -8.0
+        prior_bias_gyro: -10.0
+        prior_bias_acc: -10.0
+      starting_point: 1
+      slip_rejection: false
+      slip_threshold: 0.48
+      variable_contact_cov: false
+      cov_amplifier: 1.0
+      max_iterations: 1
+      convergence: 0.001
+
+    smoother:                  # defaults = invariant_smoother/apps/main_invariant_smoother.cpp
+      window_size: 3           # fixed-lag window (number of propagation factors); profile in replay
+      per_interval_dt: true    # each propagation factor uses its own measured interval
+      cov_exp:
+        gyro: -4.0
+        acc: -1.0
+        slip: -1.3
+        contact: -4.0
+        encoder: -5.0
+        bias_gyro: -10.0
+        bias_acc: -10.0
+        prior_orientation: -8.0
+        prior_velocity: -8.0
+        prior_position: -8.0
+        prior_bias_gyro: -10.0
+        prior_bias_acc: -10.0
+      starting_point: 1
+      slip_rejection: false
+      slip_threshold: 0.48
+      variable_contact_cov: false
+      cov_amplifier: 1.0
+      max_iterations: 10
+      max_backpropagate: 10
+      backpropagate_rate: 0.5
+      convergence: 0.001
+      retract_all: false
+
+    # ------------------------------------------------------------------ threads (nothing applied by default)
+    threads:
+      kinematics: {cpu: -1, rt_priority: 0}
+      contact: {cpu: -1, rt_priority: 0}
+      estimator: {cpu: -1, rt_priority: 0}
+
+    # ------------------------------------------------------------------ output, diagnostics, logging
+    output:
+      topic: "~/state"         # seb_interfaces/msg/EstimatorState
+      world_frame: "odom"
+      base_frame: "base"
+      publish_odometry: false
+      odometry_topic: "~/odometry"
+    diagnostics:
+      period_s: 1.0
+    log:
+      enabled: true
+      directory: "~/.ros/seb_online"
+      run_name: ""             # empty: <YYYYmmdd_HHMMSS>_<estimator>
+      queue_capacity: 20000

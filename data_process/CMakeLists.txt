@@ -22,7 +22,7 @@ add_executable(precompute_feet_kinematics
 )
 target_link_libraries(precompute_feet_kinematics PRIVATE
   seb_common
-  pinocchio::pinocchio
+  seb_kinematics
 )
 
 # Include paths (if you need more than seb_common)

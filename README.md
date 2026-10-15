@@ -179,3 +179,21 @@ python3 data/anymalD_grandtour/tum/georef_from_gnss.py \
 Outputs are written in `data/anymalD_grandtour/tum/georef_out/` as `gt_georef.tum`
 and one `*_georef.tum` per trajectory.
 
+## Online ROS 2 benchmark (Unitree Go2)
+
+The colcon workspace [`ros2_ws/`](ros2_ws) contains an online version of the benchmark for the
+Unitree Go2: the same three estimators run on `unitree_go/LowState`, with concurrent
+Pinocchio kinematics and foot-force contact detection, exact sample-id
+synchronisation, one selected estimator per run, and per-sample runtime logging.
+It is monitoring-only (no actuation). Architecture, time-stamp semantics, build,
+launch, replay, profiling, tests and the current validation status are described in
+[`docs/ROS2_ONLINE.md`](docs/ROS2_ONLINE.md).
+
+```
+conda activate state_est_bench
+cd ros2_ws
+colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release -DPython_EXECUTABLE=$CONDA_PREFIX/bin/python3
+source install/setup.bash
+ros2 launch seb_online go2_online.launch.py estimator:=muse        # or iekf, invariant_smoother
+ros2 launch seb_online go2_bag_replay.launch.py bag:=/path/to/bag estimator:=iekf
+```

@@ -1,7 +1,7 @@
 name: state_est_bench
 channels:
+  - robostack-humble   # ROS 2 Humble for the online benchmark (ros2_ws/)
   - conda-forge
-  - defaults
 dependencies:
   # Toolchain & build
   - python=3.11
@@ -13,14 +13,14 @@ dependencies:
   - c-compiler
 
   # Core deps
-  - eigen
+  - eigen=3.4
   - pinocchio
 
   # Useful numeric + plotting
-  - numpy
+  - numpy<2           # RoboStack Humble is built against numpy 1.26
   - pandas
   - matplotlib
-  - scipy 
+  - scipy
   - pyproj
   - proj
   - contextily
@@ -28,6 +28,24 @@ dependencies:
   # Optional nice-to-haves (debugging/logging)
   - fmt
   - yaml-cpp
+
+  # ROS 2 Humble (online benchmark: ros2_ws/)
+  - ros-humble-ros-base
+  - ros-humble-rclcpp-lifecycle
+  - ros-humble-rosbag2
+  - ros-humble-ros2bag
+  - ros-humble-rosbag2-storage-default-plugins
+  - ros-humble-diagnostic-msgs
+  - ros-humble-nav-msgs
+  - ros-humble-std-srvs
+  - ros-humble-launch-ros
+  - ros-humble-rosidl-default-generators
+  - ros-humble-ament-cmake
+  - ros-humble-ament-cmake-gtest
+  - ros-humble-plotjuggler-ros   # PlotJuggler + ROS 2 topic/bag plugins
+  - colcon-common-extensions
+  - empy=3.3.4          # Humble's rosidl generators fail with empy 4
+  # unitree_go messages are not packaged for conda: vendored in ros2_ws/src/unitree_go.
 
   - pip
   - pip:

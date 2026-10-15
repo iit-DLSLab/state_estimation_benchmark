@@ -4,6 +4,8 @@ project(iekf LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(SEB_BUILD_OFFLINE_APPS "Build the offline CSV benchmark executables" ON)
+
 find_package(Eigen3 REQUIRED)
 
 # ---- Sources (include .cpp, .cc, .cxx)
@@ -20,6 +22,7 @@ file(GLOB_RECURSE IEKF_SOURCES CONFIGURE_DEPENDS
 )
 
 add_library(iekf_lib STATIC ${IEKF_SOURCES})
+set_target_properties(iekf_lib PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(iekf_lib PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -31,5 +34,7 @@ target_link_libraries(iekf_lib PUBLIC Eigen3::Eigen)
 target_compile_options(iekf_lib PRIVATE -Wall -Wextra -Wpedantic)
 
 # ---- Executable
-add_executable(main_iekf ${CMAKE_CURRENT_SOURCE_DIR}/apps/main_iekf.cpp)
-target_link_libraries(main_iekf PRIVATE iekf_lib)
+if (SEB_BUILD_OFFLINE_APPS)
+  add_executable(main_iekf ${CMAKE_CURRENT_SOURCE_DIR}/apps/main_iekf.cpp)
+  target_link_libraries(main_iekf PRIVATE iekf_lib)
+endif()

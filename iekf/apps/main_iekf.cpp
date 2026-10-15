@@ -282,7 +282,9 @@ int main(int argc, char** argv)
     double pri_ori_exp = -8, pri_vel_exp = -8, pri_pos_exp = -8;
     double pri_bg_exp = -10, pri_ba_exp = -10;
 
-    EstimatorCovariances cov;
+    // Start from the constructor defaults: the 3x3 covariance matrices are
+    // otherwise left uninitialised (Covariance_Reset() only sets diagonals).
+    EstimatorCovariances cov = EstimatorCommonStruct().estimator_covariances_;
     cov.cov_gyro_diagonal << std::pow(10, gyro_exp), std::pow(10, gyro_exp), std::pow(10, gyro_exp);
     cov.cov_acc_diagonal  << std::pow(10, acc_exp),  std::pow(10, acc_exp),  std::pow(10, acc_exp);
     cov.cov_slip_diagonal << std::pow(10, slip_exp), std::pow(10, slip_exp), std::pow(10, slip_exp);

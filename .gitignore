@@ -20,3 +20,7 @@ build.ninja
 # VS Code
 .vscode/
 *.code-workspace
+
+# colcon workspace outputs
+ros2_ws/install/
+ros2_ws/log/
