@@ -15,9 +15,11 @@
 
 #include <Eigen/Geometry>
 
+#include <algorithm>
 #include <cmath>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <sstream>
 
 namespace seb {
@@ -58,6 +60,8 @@ class SmootherAdapter final : public EstimatorAdapter {
   void reset() override {
     smoother_.reset();
     window_stamps_.clear();
+    held_.clear();
+    restart_pose_.reset();
   }
 
   std::string describe() const override {
@@ -77,6 +81,27 @@ class SmootherAdapter final : public EstimatorAdapter {
        << " retract_all=" << cfg_.retract_all;
     return ss.str();
   }
+
+  // Every no-stance frame still in the window is forced again (zero velocity, its
+  // held position): forcing only the newest one would be undone by the next
+  // optimisation, where nothing but the IMU factors constrains those frames.
+  // After Onestep() the window frames are RS[0 .. frame_count-1], newest last.
+  bool holdStationary(const Eigen::Vector3d& p_hold, EstimatorOutput& out) override {
+    held_.back() = p_hold;
+    const int n = std::min<int>(smoother_->frame_count, static_cast<int>(held_.size()));
+    for (int j = 0; j < n; ++j) {
+      const auto& h = held_[held_.size() - 1 - j];
+      if (!h) continue;
+      ROBOT_STATES& f = smoother_->RS[smoother_->frame_count - 1 - j];
+      f.Velocity.setZero();
+      f.Position = *h;
+    }
+    out.p_wE = p_hold;
+    out.v_wE.setZero();
+    return true;
+  }
+
+  void restart(const Eigen::Matrix3d& R_wE, const Eigen::Vector3d& p_wE) override { restart_pose_ = {R_wE, p_wE}; }
 
   EstimatorOutput step(const SynchronizedMeasurement& m, const StepTiming& timing) override {
     if (timing.first || !smoother_) initialize(*m.sensor);
@@ -107,6 +132,8 @@ class SmootherAdapter final : public EstimatorAdapter {
 
     window_stamps_.push_back(s.stamp_ns);
     while (static_cast<int>(window_stamps_.size()) > cfg_.window_size + 1) window_stamps_.pop_front();
+    held_.emplace_back();  // set by holdStationary() for a no-stance frame
+    while (static_cast<int>(held_.size()) > smoother_->frame_count) held_.pop_front();
 
     EstimatorOutput out;
     out.R_wE = state_.Rotation;
@@ -125,12 +152,21 @@ class SmootherAdapter final : public EstimatorAdapter {
 
  private:
   void initialize(const SensorSample& s) {
-    smoother_ = makeZeroed<InvariantSmoother>();
+    // A restart re-initialises the existing object: Initialize() resets the window,
+    // the marginalisation and the counters, and avoids the ~35 ms allocation and
+    // zeroing of a new InvariantSmoother when the robot is about to be controlled.
+    if (!smoother_ || !restart_pose_) smoother_ = makeZeroed<InvariantSmoother>();
     window_stamps_.clear();
+    held_.clear();
 
     Eigen::Matrix<double, 16, 1> x0;
     x0 << 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-    if (settings_.common.init_attitude == InitAttitude::kGravityAligned) {
+    if (restart_pose_) {
+      const Eigen::Quaterniond q0(restart_pose_->first);
+      x0.segment<3>(0) = restart_pose_->second;
+      x0.segment<4>(3) << q0.w(), q0.x(), q0.y(), q0.z();
+      restart_pose_.reset();
+    } else if (settings_.common.init_attitude == InitAttitude::kGravityAligned) {
       const Eigen::Quaterniond q0(gravityAlignedAttitude(s.acc));
       x0.segment<4>(3) << q0.w(), q0.x(), q0.y(), q0.z();
     }
@@ -164,6 +200,8 @@ class SmootherAdapter final : public EstimatorAdapter {
   MEAS_FORWARD_KINEMATICS forkin_;
   ROBOT_STATES state_{};
   std::deque<std::int64_t> window_stamps_;
+  std::deque<std::optional<Eigen::Vector3d>> held_;  // per window frame (oldest first): held position
+  std::optional<std::pair<Eigen::Matrix3d, Eigen::Vector3d>> restart_pose_;  // pose of the next initialisation
 };
 
 }  // namespace

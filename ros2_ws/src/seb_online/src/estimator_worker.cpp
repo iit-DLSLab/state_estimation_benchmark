@@ -1,5 +1,6 @@
 #include "seb_online/estimator_worker.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <exception>
 
@@ -74,6 +75,7 @@ void EstimatorWorker::resetEstimator() {
   adapter_->reset();
   initialized_ = false;
   samples_since_init_ = 0;
+  holding_ = false;
 }
 
 void EstimatorWorker::processOne(SynchronizedMeasurement& m, std::size_t queue_depth_after_pop) {
@@ -98,6 +100,22 @@ void EstimatorWorker::processOne(SynchronizedMeasurement& m, std::size_t queue_d
       emitEvent(EventType::kStaleInput, s, age_s);
       finish();
       return;
+    }
+  }
+
+  // Stance again after a long hold: the estimator state was forced for that whole
+  // interval while its covariance (IEKF) / marginalisation prior (smoother) kept
+  // integrating the IMU alone; restart it at the held pose instead.
+  const bool any_stance =
+      std::any_of(m.contacts.stance.begin(), m.contacts.stance.end(), [](bool c) { return c; });
+  if (holding_ && any_stance && config_.hold_restart_s >= 0.0) {
+    const double held_s = static_cast<double>(s.stamp_ns - hold_start_ns_) * 1e-9;
+    if (held_s >= config_.hold_restart_s) {
+      adapter_->restart(restartAttitude(last_R_wE_, s.acc), last_p_wE_);
+      emitEvent(EventType::kHoldRestart, s, held_s);
+      initialized_ = false;
+      samples_since_init_ = 0;
+      holding_ = false;
     }
   }
 
@@ -189,6 +207,23 @@ void EstimatorWorker::processOne(SynchronizedMeasurement& m, std::size_t queue_d
     return;
   }
 
+  // No leg in stance: the velocity is not observable (pure IMU integration, which
+  // on the Go2 diverges within seconds: robot lying with unloaded feet, lifted, or
+  // a contact-detection dropout), so the estimator state is forced to zero velocity
+  // at the previous position.
+  bool held = false;
+  if (config_.hold_without_stance &&
+      std::none_of(m.contacts.stance.begin(), m.contacts.stance.end(), [](bool c) { return c; })) {
+    held = adapter_->holdStationary(timing.first ? est.p_wE : last_p_wE_, est);
+    if (held && !holding_) {
+      emitEvent(EventType::kNoStanceHold, s, 0.0);
+      hold_start_ns_ = s.stamp_ns;
+    }
+  }
+  holding_ = held;
+  last_p_wE_ = est.p_wE;
+  last_R_wE_ = est.R_wE;
+
   // Estimation frame E (base axes, IMU origin) -> base origin.
   const Eigen::Vector3d r_E_base = -mapping_.p_base_imu;  // base origin in E
   out.gyro_bias = est.gyro_bias;
@@ -201,7 +236,7 @@ void EstimatorWorker::processOne(SynchronizedMeasurement& m, std::size_t queue_d
   const Eigen::Matrix3d& R = est.R_wE;
   out.p_wb = est.p_wE + R * r_E_base;
   out.position_valid = est.position_valid;
-  out.v_wb = est.v_wE + R * out.omega_b.cross(r_E_base);
+  out.v_wb = held ? Eigen::Vector3d::Zero() : Eigen::Vector3d(est.v_wE + R * out.omega_b.cross(r_E_base));
   out.v_b = R.transpose() * out.v_wb;
   out.q_wb = Eigen::Quaterniond(R);
   out.q_wb.normalize();

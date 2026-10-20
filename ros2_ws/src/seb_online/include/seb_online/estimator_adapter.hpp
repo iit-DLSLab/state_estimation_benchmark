@@ -136,6 +136,18 @@ class EstimatorAdapter {
   // Discards the internal state; the next step() must have timing.first = true.
   virtual void reset() = 0;
   virtual EstimatorOutput step(const SynchronizedMeasurement& m, const StepTiming& timing) = 0;
+  // Called right after step() on a sample with no leg in stance: writes into the
+  // internal state a zero velocity and the position p_hold (frame E, world), sets
+  // `out` accordingly and returns true. Attitude and biases are left to the
+  // estimator. The default returns false and changes nothing: the estimator handles
+  // such a sample itself (MUSE fuses a zero leg-odometry velocity, as the official one).
+  virtual bool holdStationary(const Eigen::Vector3d& /*p_hold*/, EstimatorOutput& /*out*/) { return false; }
+  // Called when stance returns after a long hold: the next step() (timing.first)
+  // re-initialises the estimator at this pose with zero velocity, discarding the
+  // covariance / marginalisation built from the IMU-only interval. reset() is NOT
+  // called before it, so the estimator object may be reused. Only called on
+  // estimators whose holdStationary() returned true.
+  virtual void restart(const Eigen::Matrix3d& /*R_wE*/, const Eigen::Vector3d& /*p_wE*/) {}
   // Human-readable configuration (written to the run log).
   virtual std::string describe() const = 0;
 };
@@ -146,5 +158,9 @@ std::unique_ptr<EstimatorAdapter> createEstimator(const EstimatorSettings& setti
 // Rotation body->world with the measured specific force mapped onto +z (yaw
 // arbitrary, minimal rotation). Identity if the acceleration is not usable.
 Eigen::Matrix3d gravityAlignedAttitude(const Eigen::Vector3d& acc_base);
+
+// Roll/pitch from the accelerometer (robot at rest), heading of R_prev: attitude
+// for a restart after a hold, where roll/pitch were integrated from the gyro alone.
+Eigen::Matrix3d restartAttitude(const Eigen::Matrix3d& R_prev, const Eigen::Vector3d& acc_base);
 
 }  // namespace seb

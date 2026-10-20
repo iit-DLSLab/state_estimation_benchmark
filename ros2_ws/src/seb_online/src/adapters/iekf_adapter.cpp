@@ -11,6 +11,7 @@
 
 #include <cmath>
 #include <memory>
+#include <optional>
 #include <sstream>
 
 namespace seb {
@@ -46,7 +47,10 @@ class IekfAdapter final : public EstimatorAdapter {
 
   const char* name() const override { return "iekf"; }
 
-  void reset() override { filter_.reset(); }
+  void reset() override {
+    filter_.reset();
+    restart_pose_.reset();
+  }
 
   std::string describe() const override {
     const auto& c = cfg_.cov;
@@ -62,6 +66,19 @@ class IekfAdapter final : public EstimatorAdapter {
        << " convergence=" << cfg_.convergence;
     return ss.str();
   }
+
+  bool holdStationary(const Eigen::Vector3d& p_hold, EstimatorOutput& out) override {
+    // IMU2BD is zero: the filter state is the estimation frame E.
+    inekf::RobotState x = filter_->filter.getState();
+    x.setVelocity(Eigen::Vector3d::Zero());
+    x.setPosition(p_hold);
+    filter_->filter.setState(x);
+    out.p_wE = p_hold;
+    out.v_wE.setZero();
+    return true;
+  }
+
+  void restart(const Eigen::Matrix3d& R_wE, const Eigen::Vector3d& p_wE) override { restart_pose_ = {R_wE, p_wE}; }
 
   EstimatorOutput step(const SynchronizedMeasurement& m, const StepTiming& timing) override {
     if (timing.first || !filter_) initialize(*m.sensor);
@@ -119,7 +136,12 @@ class IekfAdapter final : public EstimatorAdapter {
         0.0, 0.0, 0.0,        // vx, vy, vz
         0.0, 0.0, 0.0,        // bgx, bgy, bgz
         0.0, 0.0, 0.0;        // bax, bay, baz
-    if (settings_.common.init_attitude == InitAttitude::kGravityAligned) {
+    if (restart_pose_) {
+      const Eigen::Quaterniond q0(restart_pose_->first);
+      x0.segment<3>(0) = restart_pose_->second;
+      x0.segment<4>(3) << q0.w(), q0.x(), q0.y(), q0.z();
+      restart_pose_.reset();
+    } else if (settings_.common.init_attitude == InitAttitude::kGravityAligned) {
       const Eigen::Quaterniond q0(gravityAlignedAttitude(s.acc));
       x0.segment<4>(3) << q0.w(), q0.x(), q0.y(), q0.z();
     }
@@ -147,6 +169,7 @@ class IekfAdapter final : public EstimatorAdapter {
   Eigen::Matrix<bool, 4, 1> contact_ = Eigen::Matrix<bool, 4, 1>::Zero();
   MEAS_FORWARD_KINEMATICS forkin_;
   ROBOT_STATES state_{};
+  std::optional<std::pair<Eigen::Matrix3d, Eigen::Vector3d>> restart_pose_;  // pose of the next initialisation
 };
 
 }  // namespace

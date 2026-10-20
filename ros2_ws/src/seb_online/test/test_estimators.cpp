@@ -147,6 +147,101 @@ TEST_P(MeasuredDt, PropagationUsesMeasuredIntervals) {
 
 INSTANTIATE_TEST_SUITE_P(InvariantEstimators, MeasuredDt, ::testing::Values("iekf", "invariant_smoother"));
 
+// No leg in stance with a biased accelerometer: without contacts the velocity is
+// pure IMU integration. holdStationary() (as called by the worker) must keep the
+// internal state at zero velocity and the held position, so that the raw estimate
+// of the next step drifts by one step at most and nothing jumps when contact returns.
+class HoldStationary : public ::testing::TestWithParam<std::string> {};
+
+TEST_P(HoldStationary, ForcesInternalState) {
+  const RobotMapping m = go2Mapping();
+  EstimatorSettings settings;
+  settings.type = GetParam();
+  auto est = createEstimator(settings);
+  StandingSequence seq(m);
+  std::int64_t t = 1000 * kMs;
+  const std::int64_t t0 = t;
+  auto run = [&](int k, bool contact, const Eigen::Vector3d& acc) {
+    StepTiming timing;
+    timing.first = (k == 0);
+    timing.dt_s = k == 0 ? 0.0 : 0.002;
+    t += k == 0 ? 0 : 2 * kMs;
+    timing.t_rel_s = static_cast<double>(t - t0) * 1e-9;
+    return est->step(seq.make(k + 1, t, contact, acc), timing);
+  };
+  EstimatorOutput out;
+  for (int k = 0; k < 300; ++k) out = run(k, true, Eigen::Vector3d(0, 0, 9.81));
+  const Eigen::Vector3d p_hold = out.p_wE;
+  const Eigen::Vector3d biased(1.0, 0.5, 9.35);  // ~1.2 m/s^2 error: 0.35 m/s after 0.3 s if integrated
+  for (int k = 300; k < 450; ++k) {
+    out = run(k, false, biased);
+    ASSERT_TRUE(out.v_wE.allFinite() && out.p_wE.allFinite()) << settings.type << " step " << k;
+    EXPECT_LT(out.v_wE.norm(), 0.02) << settings.type << " raw estimate drifted, step " << k;
+    EXPECT_LT((out.p_wE - p_hold).norm(), 1e-3) << settings.type << " step " << k;
+    ASSERT_TRUE(est->holdStationary(p_hold, out));
+    EXPECT_TRUE(out.v_wE.isZero());
+    EXPECT_TRUE(out.p_wE.isApprox(p_hold));
+  }
+  for (int k = 450; k < 500; ++k) {
+    out = run(k, true, Eigen::Vector3d(0, 0, 9.81));
+    EXPECT_LT(out.v_wE.norm(), 0.05) << settings.type << " after contact returns, step " << k;
+    EXPECT_LT((out.p_wE - p_hold).norm(), 0.01) << settings.type << " step " << k;
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(InvariantEstimators, HoldStationary, ::testing::Values("iekf", "invariant_smoother"));
+
+// restart() then a first step re-initialises at the given pose with zero velocity.
+// The smoother reuses its object: the result must equal that of a new estimator
+// started at the same pose (nothing left over from the previous run).
+TEST_P(HoldStationary, RestartEqualsFreshStartAtPose) {
+  const RobotMapping m = go2Mapping();
+  EstimatorSettings settings;
+  settings.type = GetParam();
+  auto used = createEstimator(settings);
+  auto fresh = createEstimator(settings);
+  StandingSequence seq(m);
+  auto timing = [](int k) {
+    StepTiming t;
+    t.first = (k == 0);
+    t.dt_s = k == 0 ? 0.0 : 0.002;
+    t.t_rel_s = 0.002 * k;
+    return t;
+  };
+  // Run the first one through contact and a long biased no-contact phase.
+  std::int64_t t = 1000 * kMs;
+  for (int k = 0; k < 300; ++k, t += 2 * kMs)
+    used->step(seq.make(k + 1, t, k < 100, Eigen::Vector3d(0.5, 0.2, 9.35)), timing(k));
+
+  const Eigen::Matrix3d R0 = Eigen::AngleAxisd(0.3, Eigen::Vector3d::UnitZ()).toRotationMatrix();
+  const Eigen::Vector3d p0(1.0, -2.0, 0.25);
+  used->restart(R0, p0);
+  fresh->restart(R0, p0);
+  for (int k = 0; k < 200; ++k, t += 2 * kMs) {
+    const auto meas = seq.make(1000 + k, t, true);
+    const EstimatorOutput a = used->step(meas, timing(k));
+    const EstimatorOutput b = fresh->step(meas, timing(k));
+    if (k == 0) {
+      EXPECT_TRUE(a.p_wE.isApprox(p0, 1e-6)) << settings.type;
+      EXPECT_LT(a.v_wE.norm(), 1e-6) << settings.type;
+      EXPECT_LT(Eigen::AngleAxisd(a.R_wE.transpose() * R0).angle(), 1e-6) << settings.type;
+    }
+    ASSERT_TRUE(a.p_wE.isApprox(b.p_wE, 1e-12) && a.v_wE.isApprox(b.v_wE, 1e-12) && a.R_wE.isApprox(b.R_wE, 1e-12))
+        << settings.type << " step " << k;
+  }
+}
+
+// MUSE keeps the official behaviour: no hold, the zero leg-odometry velocity is fused.
+TEST(HoldStationaryMuse, NotImplemented) {
+  EstimatorSettings settings;
+  settings.type = "muse";
+  auto est = createEstimator(settings);
+  EstimatorOutput out;
+  out.v_wE = Eigen::Vector3d(0.3, 0.0, 0.0);
+  EXPECT_FALSE(est->holdStationary(Eigen::Vector3d::Zero(), out));
+  EXPECT_DOUBLE_EQ(out.v_wE.x(), 0.3);
+}
+
 TEST(Smoother, ConfigurableWindowSizes) {
   const RobotMapping m = go2Mapping();
   StandingSequence seq(m);

@@ -226,6 +226,10 @@ NodeSettings declareAndLoadSettings(const Params& p) {
                              "Older inputs are dropped as stale [s]; <= 0 disables");
   ew.min_dt_s = param(p, "estimator.min_dt_s", ew.min_dt_s, "Smaller dt is not processed [s]");
   ew.max_speed_mps = param(p, "estimator.max_speed_mps", ew.max_speed_mps, "Divergence check on base speed [m/s]");
+  ew.hold_without_stance = param<bool>(p, "estimator.hold_without_stance", ew.hold_without_stance,
+                                       "No leg in stance: force zero velocity and hold position (IEKF, smoother)");
+  ew.hold_restart_s = param(p, "estimator.hold_restart_s", ew.hold_restart_s,
+                            "Stance after a hold this long: restart at the held pose [s] (< 0: never)");
   ew.warmup_samples = static_cast<int>(param<std::int64_t>(p, "estimator.warmup_samples", ew.warmup_samples,
                                                            "Samples flagged INITIALIZING after (re)initialisation"));
 
@@ -283,6 +287,14 @@ NodeSettings declareAndLoadSettings(const Params& p) {
   s.publish_odometry = param<bool>(p, "output.publish_odometry", s.publish_odometry,
                                    "Also publish nav_msgs/Odometry (covariances not provided)");
   s.odometry_topic = param<std::string>(p, "output.odometry_topic", s.odometry_topic, "nav_msgs/Odometry topic");
+  s.publish_base_state = param<bool>(p, "output.publish_base_state", s.publish_base_state,
+                                     "Also publish dls2_interface/BaseState (the state read by the MPC)");
+  s.base_state_topic =
+      param<std::string>(p, "output.base_state_topic", s.base_state_topic, "dls2_interface/BaseState topic");
+  s.robot_name = param<std::string>(p, "output.robot_name", s.robot_name, "BaseState.robot_name");
+  s.publish_timing = param<bool>(p, "profiling.publish_timing", s.publish_timing,
+                                 "Publish seb_interfaces/EstimatorTiming for every estimator update");
+  s.timing_topic = param<std::string>(p, "profiling.timing_topic", s.timing_topic, "EstimatorTiming topic");
   s.diagnostics_period_s =
       param<double>(p, "diagnostics.period_s", s.diagnostics_period_s, "Period of /diagnostics [s]");
   s.log_enabled = param<bool>(p, "log.enabled", s.log_enabled, "Write per-sample CSV logs");

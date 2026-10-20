@@ -140,6 +140,8 @@ enum class EventType : std::uint8_t {
   kResetTimeJump = 15,      // time base jumped backwards: pipeline re-initialised
   kDtTooSmall = 16,         // dt below estimator.min_dt_s: sample not processed
   kEstimatorException = 17, // exception thrown by the estimator update
+  kNoStanceHold = 18,       // no leg in stance: velocity forced to zero, position held (episode start)
+  kHoldRestart = 19,        // stance again after a long hold: estimator restarted at the held pose
 };
 
 const char* toString(EventType type);

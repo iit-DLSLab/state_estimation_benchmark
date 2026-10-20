@@ -71,7 +71,18 @@ class OnlineEstimatorNode : public rclcpp_lifecycle::LifecycleNode {
       if (settings_.publish_odometry) {
         odom_pub_ = create_publisher<nav_msgs::msg::Odometry>(settings_.odometry_topic, rclcpp::QoS(10));
       }
+      if (settings_.publish_base_state) {
+        // Depth 1, as the MPC subscription: only the latest state matters.
+        base_state_pub_ =
+            create_publisher<dls2_interface::msg::BaseState>(settings_.base_state_topic, rclcpp::QoS(1));
+        RCLCPP_INFO(get_logger(), "Publishing dls2_interface/BaseState on %s", settings_.base_state_topic.c_str());
+      }
       diag_pub_ = create_publisher<diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", rclcpp::QoS(10));
+      if (settings_.publish_timing) {
+        // Depth for rosbag recording at the sample rate (500 Hz).
+        timing_pub_ = create_publisher<seb_interfaces::msg::EstimatorTiming>(settings_.timing_topic, rclcpp::QoS(500));
+        RCLCPP_INFO(get_logger(), "Publishing estimator timing on %s", settings_.timing_topic.c_str());
+      }
 
       Pipeline::Sinks sinks;
       sinks.output = [this](StateEstimate& s) { publish(s); };
@@ -109,7 +120,9 @@ class OnlineEstimatorNode : public rclcpp_lifecycle::LifecycleNode {
     pipeline_->start();
     state_pub_->on_activate();
     if (odom_pub_) odom_pub_->on_activate();
+    if (base_state_pub_) base_state_pub_->on_activate();
     diag_pub_->on_activate();
+    if (timing_pub_) timing_pub_->on_activate();
 
     acquisition_group_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     service_group_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -183,7 +196,9 @@ class OnlineEstimatorNode : public rclcpp_lifecycle::LifecycleNode {
     }
     if (state_pub_ && state_pub_->is_activated()) state_pub_->on_deactivate();
     if (odom_pub_ && odom_pub_->is_activated()) odom_pub_->on_deactivate();
+    if (base_state_pub_ && base_state_pub_->is_activated()) base_state_pub_->on_deactivate();
     if (diag_pub_ && diag_pub_->is_activated()) diag_pub_->on_deactivate();
+    if (timing_pub_ && timing_pub_->is_activated()) timing_pub_->on_deactivate();
   }
 
   void teardown() {
@@ -192,7 +207,9 @@ class OnlineEstimatorNode : public rclcpp_lifecycle::LifecycleNode {
     logger_.reset();
     state_pub_.reset();
     odom_pub_.reset();
+    base_state_pub_.reset();
     diag_pub_.reset();
+    timing_pub_.reset();
   }
 
  private:
@@ -215,6 +232,16 @@ class OnlineEstimatorNode : public rclcpp_lifecycle::LifecycleNode {
     if (odom_pub_) {
       toOdometry(s, settings_.world_frame, settings_.base_frame, odom_msg_);
       odom_pub_->publish(odom_msg_);
+    }
+    // The controller only receives estimates it can use (no warm-up, no diverged state).
+    if (base_state_pub_ && usableForControl(s)) {
+      toBaseState(s, settings_.world_frame, settings_.robot_name, base_state_msg_);
+      base_state_pub_->publish(base_state_msg_);
+    }
+    // After the state: the timing message never delays the controller input.
+    if (timing_pub_) {
+      toTiming(s, timing_msg_);
+      timing_pub_->publish(timing_msg_);
     }
   }
 
@@ -243,7 +270,9 @@ class OnlineEstimatorNode : public rclcpp_lifecycle::LifecycleNode {
   rclcpp::Subscription<unitree_go::msg::LowState>::SharedPtr lowstate_sub_;
   rclcpp_lifecycle::LifecyclePublisher<seb_interfaces::msg::EstimatorState>::SharedPtr state_pub_;
   rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
+  rclcpp_lifecycle::LifecyclePublisher<dls2_interface::msg::BaseState>::SharedPtr base_state_pub_;
   rclcpp_lifecycle::LifecyclePublisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diag_pub_;
+  rclcpp_lifecycle::LifecyclePublisher<seb_interfaces::msg::EstimatorTiming>::SharedPtr timing_pub_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_srv_;
   rclcpp::TimerBase::SharedPtr diag_timer_;
   std::int64_t last_diag_steady_ns_ = 0;
@@ -251,6 +280,8 @@ class OnlineEstimatorNode : public rclcpp_lifecycle::LifecycleNode {
   // Only used from the estimator thread.
   seb_interfaces::msg::EstimatorState state_msg_;
   nav_msgs::msg::Odometry odom_msg_;
+  dls2_interface::msg::BaseState base_state_msg_;
+  seb_interfaces::msg::EstimatorTiming timing_msg_;
 };
 
 }  // namespace seb

@@ -27,7 +27,12 @@ struct NodeSettings {
   std::string base_frame = "base";
   bool publish_odometry = false;
   std::string odometry_topic = "~/odometry";
+  bool publish_base_state = true;
+  std::string base_state_topic = "/base_state";
+  std::string robot_name = "go2";
   double diagnostics_period_s = 1.0;
+  bool publish_timing = false;  // per-update timing for benchmarking
+  std::string timing_topic = "/benchmark/estimator_timing";
 
   // logging
   bool log_enabled = true;

@@ -71,16 +71,30 @@
       min_dt_s: 0.000001
       max_speed_mps: 20.0      # divergence check (status INVALID + re-initialisation)
       warmup_samples: 1
+      # IEKF / smoother: no leg in stance -> velocity forced to 0, position held (state + output).
+      # Without it they integrate the IMU alone and diverge (Go2 |acc| at rest is 9.35, not 9.81).
+      # No effect on MUSE, which fuses a zero leg-odometry velocity itself (official behaviour).
+      hold_without_stance: true
+      # Stance again after a hold this long [s]: restart IEKF / smoother at the held position,
+      # zero velocity, roll/pitch from the accelerometer (they drift on the gyro alone). < 0: never.
+      hold_restart_s: 0.5
 
-    muse:                      # defaults = muse/apps/main_muse.cpp
+    # Real-robot tuning of the official MUSE Go2 plugin (state_estimator/config/
+    # attitude_plugin.yaml, proprioceptive_sensor_fusion.yaml). The code defaults are the
+    # offline values of muse/apps/main_muse.cpp (attitude 1e-12/1e-15/1e-6, fusion
+    # 1e-14/1e-14/5e-16): on the Go2 they let roll drift by ~4 deg and leak gravity into a
+    # ~0.1 m/s horizontal velocity at rest, and the robot fell laterally on goUp.
+    # attitude_R is a scalar here; official uses 1e-3 (accelerometer) and 16 (fake north),
+    # so only the yaw drift differs from the official output.
+    muse:
       ki: 0.02
       kp: 10.0
-      attitude_P0: 1.0e-12
-      attitude_Q: 1.0e-15
-      attitude_R: 1.0e-6
-      fusion_P0: 1.0e-14
-      fusion_Q: 1.0e-14
-      fusion_R: 5.0e-16
+      attitude_P0: 1.0e-6
+      attitude_Q: 1.0e-6
+      attitude_R: 1.0e-3
+      fusion_P0: 1.0e-4
+      fusion_Q: 1.0e-9
+      fusion_R: 1.0e-11
       gravity: 9.81
       use_updated_attitude: true   # false = offline behaviour (attitude of the previous sample)
 
@@ -146,8 +160,16 @@
       base_frame: "base"
       publish_odometry: false
       odometry_topic: "~/odometry"
+      # dls2_interface/msg/BaseState read by the MPC (Quadruped-PyMPC). Only VALID and
+      # DEGRADED estimates are published (nothing during warm-up or after divergence).
+      publish_base_state: true
+      base_state_topic: "/base_state"
+      robot_name: "go2"
     diagnostics:
-      period_s: 1.0
+      period_s: 1.0            # /diagnostics also reports the published-state rate (updates_per_s)
+    profiling:
+      publish_timing: false    # true: seb_interfaces/EstimatorTiming for every update (launch profiling:=true)
+      timing_topic: "/benchmark/estimator_timing"
     log:
       enabled: true
       directory: "~/.ros/seb_online"

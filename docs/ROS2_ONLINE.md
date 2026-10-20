@@ -262,6 +262,29 @@ delay is the optimisation time, not the window duration. The log reports both:
 `window_duration_s` (newest − oldest frame stamp in the window) and the execution
 time. `smoother.window_size` is a runtime parameter (any value ≥ 1).
 
+**No leg in stance** (`estimator.hold_without_stance`, default true). With no leg in
+stance the IEKF and the smoother have no contact factor, integrate the IMU alone
+and diverge within seconds on the Go2 (its accelerometer reads |a| ≈ 9.35 m/s² at
+rest and the accelerometer bias is frozen by its 1e-10 prior). This happens with
+the robot lying with unloaded feet or lifted. On such a sample the estimator worker
+forces **zero velocity** and holds the **position** of the previous estimate, in the
+output and in the estimator state (`EstimatorAdapter::holdStationary`): IEKF state
+velocity and position; smoother velocity and position of every no-stance frame in
+the window, re-forced after each optimisation. Attitude and biases keep coming from
+the estimator. One `no_stance_hold` event is logged per episode. MUSE is not
+affected: as the official MUSE, it fuses the zero leg-odometry velocity itself.
+
+**Restart after a long hold** (`estimator.hold_restart_s`, default 0.5 s, < 0 never).
+During a hold the IEKF covariance and the smoother marginalisation prior keep
+integrating the IMU alone, and roll/pitch drift on the gyro. Forcing the state is
+not enough: when contact returns, that stale information pulls the position away
+(metres on a replay with 20 s of no contact). On the first stance sample after a
+hold of at least `hold_restart_s`, the estimator is therefore restarted at the held
+position with zero velocity, roll/pitch from the accelerometer of that sample
+(robot at rest) and the heading of the last estimate (`hold_restart` event). The
+smoother re-initialises its existing object (0.3 ms instead of the ~35 ms of a new
+allocation). Shorter holds (contact-detection dropouts) only hold.
+
 ## Changes to the offline code
 
 All offline outputs were regenerated after the changes and are **byte-identical** to
@@ -313,7 +336,8 @@ Other observations (not changed):
 Event types in `events.csv`: `invalid_message, duplicate, out_of_order, decimated,
 pipeline_full, missing_kinematics, missing_contact, missing_kinematics_and_contact,
 late_worker_result, estimator_backlog_drop, stale_input, gap, reset_gap,
-reset_diverged, reset_requested, reset_time_jump, dt_too_small, estimator_exception`.
+reset_diverged, reset_requested, reset_time_jump, dt_too_small, estimator_exception,
+no_stance_hold, hold_restart`.
 `/diagnostics` turns WARN when samples are lost in the last period and ERROR on any
 synchronisation integrity counter.
 
@@ -331,6 +355,16 @@ validity flags (MUSE has no accelerometer bias), the contact set used, and timin
 (`latency_to_estimate_s`, `estimator_compute_time_s`, `state_age_at_publish_s`,
 `estimator_queue_depth`, `dropped_samples_total`). Optional `nav_msgs/Odometry`
 (`output.publish_odometry`), covariances not provided (zeros).
+
+**MPC input.** `dls2_interface/msg/BaseState` on `/base_state` (the topic and type
+Quadruped-PyMPC subscribes to; `output.publish_base_state`, default on; launch
+argument `base_state:=false` disables it): `pose.position` and `velocity.linear` in
+the world frame, `pose.orientation` = base→world as **[x, y, z, w]**,
+`velocity.angular` in the **base** frame, `timestamp` = state time in ns (ROS clock,
+float64), `sequence_id` = `sample_id` (mod 2^32), `stance_status` = the contact set
+(LF, RF, LH, RH), `acceleration` zero. Only VALID and DEGRADED estimates are
+published on it. `dls2_interface` in `ros2_ws/src` is an unmodified copy of
+`Quadruped-PyMPC/ros2/msgs_ws/src/dls2_interface`: keep the two identical.
 No covariance of the estimate is published (not exposed uniformly by the three
 implementations).
 
@@ -438,6 +472,66 @@ on the development PC the smoother update took 0.51 ms on average in lossless
 replay but 1.02 ms when paced in real time, consistent with frequency scaling
 while the CPU idles between samples. Thread affinity / SCHED_FIFO priorities are
 available under `threads.*` (nothing is applied by default).
+
+## Benchmark metrics (onboard performance)
+
+Off by default; nothing changes in a normal run. `profiling:=true` enables two things.
+The estimator node publishes `seb_interfaces/EstimatorTiming` on
+`/benchmark/estimator_timing`, one message per update, from the estimator thread
+right after the state. A separate process, `resource_monitor.py`, publishes
+`seb_interfaces/ResourceUsage` on `/benchmark/resources` at 2 Hz. The MPC side is a
+flag in `Quadruped-PyMPC/ros2/run_controller.py` (`PUBLISH_BASE_STATE_CONSUMPTION`,
+on). It publishes `sensor_msgs/TimeReference` on `/benchmark/mpc_state_consumption`.
+No metric is computed or written to file in the estimator; nothing is printed.
+
+```bash
+# terminal 1 (state_est_bench): estimator + profiling
+source ros2_ws/install/local_setup.bash
+ros2 launch seb_online go2_online.launch.py estimator:=muse profiling:=true   # or iekf / invariant_smoother (with  window_size:=n)
+
+# terminal 2: record (start before goUp)
+ros2 bag record -o bench_muse_01 /benchmark/estimator_timing /benchmark/resources \
+    /benchmark/mpc_state_consumption /diagnostics /base_state /lowstate
+
+# afterwards
+ros2 run seb_online benchmark_summary.py bench_muse_01 --csv bench_muse_01
+```
+
+The resource monitor can also run alone, next to an estimator started without
+profiling: `ros2 run seb_online resource_monitor.py`.
+
+| metric | definition | clock |
+|---|---|---|
+| `estimator_ms` | duration of the estimator update: `EstimatorAdapter::step()`, which feeds and calls the unmodified MUSE / IEKF / smoother update (`Onestep`, ...) | steady |
+| `kinematics_ms`, `contact_ms` | preprocessing of the sample: forward kinematics and contact detection, each in its own worker thread, **in parallel** (not to be summed) | steady |
+| `receive_to_publish_ms` | first line of the LowState subscription callback → start of the state publication: preprocessing + synchronisation + estimator queue + update + conversion | steady |
+| `sample_id`, `lowstate_tick` | source sample; `sample_id` = `EstimatorState.sample_id` = `BaseState.sequence_id` (mod 2^32); `lowstate_tick` is a robot counter, never used as a time | — |
+| output rate | `updates_per_s` in `/diagnostics` (estimates published per period), or offline from consecutive `header.stamp` of `/benchmark/estimator_timing` (publication time) | ROS |
+| `cpu_percent` | psutil `Process.cpu_percent()` of the estimator process (all threads) over the 0.5 s period, in % of **one core**: it **can exceed 100 %** on a multicore CPU (max `100 * num_cpus`) | process CPU time |
+| `rss_mb`, `num_threads` | resident memory and threads of the estimator process | — |
+| state age at consumption | `/benchmark/mpc_state_consumption`: `header.stamp` (ROS time when `compute_control_callback` copied the base state into the model) − `time_ref` (`BaseState.timestamp` of that message); `source` = its `sequence_id` | ROS (same host) |
+
+Notes and limitations:
+* Durations use `std::chrono::steady_clock`, so they are immune to clock adjustments.
+  Unmeasured values are NaN, never 0.
+* The state age at consumption is based on the reception time only with
+  `time.stamp_source: receive_time` (default). `BaseState.timestamp` is then the ROS
+  time of the LowState callback. It is a float64 in ns, so it is quantised to about
+  0.25 µs. Estimator and controller must run on the same host, as both use its ROS
+  clock. The record is published after the control signal and only for steps that
+  sent one. It refers to the WBC loop: the MPC solve runs asynchronously on the state
+  of that loop.
+* The resource monitor finds the process whose executable is `online_estimator_node`;
+  with several such processes it monitors none and warns. It cannot see the
+  controller's CPU (use `-p process_name:=...` for another process).
+* The first sample after every (re)initialisation (status INITIALIZING) includes
+  allocations, about 35 ms for a new smoother. The samples received meanwhile wait in
+  the queue, which shows up in their `receive_to_publish_ms`. `benchmark_summary.py`
+  excludes INITIALIZING samples from the estimator statistics and reports them
+  separately.
+* Overhead (smoother, bag replayed at real time on the workstation): one extra
+  publication per update; latency, update time and CPU within run-to-run noise with
+  and without profiling (receive→publish median 0.58 vs 0.62 ms, CPU 34 vs 36 %).
 
 ## Tests
 

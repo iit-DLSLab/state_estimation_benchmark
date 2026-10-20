@@ -95,7 +95,19 @@ class RecordingEstimator : public EstimatorAdapter {
                        bundleIsCoherent(m)});
     }
     in_step_.fetch_sub(1);
-    return EstimatorOutput();
+    return next_output;
+  }
+
+  bool holdStationary(const Eigen::Vector3d& p_hold, EstimatorOutput& out) override {
+    if (!supports_hold) return false;
+    held_positions.push_back(p_hold);
+    out.p_wE = p_hold;
+    out.v_wE.setZero();
+    return true;
+  }
+
+  void restart(const Eigen::Matrix3d& R_wE, const Eigen::Vector3d& p_wE) override {
+    restarts.push_back({R_wE, p_wE});
   }
 
   std::vector<Call> snapshot() {
@@ -104,6 +116,10 @@ class RecordingEstimator : public EstimatorAdapter {
   }
 
   std::atomic<int> concurrent_calls{0};
+  EstimatorOutput next_output;                 // returned by step()
+  bool supports_hold = true;                   // false: behaves like MUSE (no holdStationary)
+  std::vector<Eigen::Vector3d> held_positions;  // holdStationary() calls (estimator thread only)
+  std::vector<std::pair<Eigen::Matrix3d, Eigen::Vector3d>> restarts;  // restart() calls
   int resets = 0;
 
  private:

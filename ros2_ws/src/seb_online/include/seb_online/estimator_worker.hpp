@@ -10,8 +10,13 @@
 //        dt > max_gap_s         -> estimator re-initialised on this sample (kResetGap)
 //        acq_seq jump           -> processed across the gap, flagged (kGap, status DEGRADED)
 //   4. estimator update (timed with the monotonic clock)
-//   5. non-finite / speed > max_speed_mps -> status INVALID, re-initialised (kResetDiverged)
-//   6. conversion of the estimate from frame E (base axes, IMU origin) to the base
+//   5. no leg in stance (hold_without_stance) -> velocity forced to zero and position held
+//      at the previous estimate, in the estimator state and in the output (kNoStanceHold);
+//      only for estimators implementing holdStationary (IEKF, smoother), not MUSE;
+//      first stance sample after a hold >= hold_restart_s -> estimator restarted at the
+//      held position, zero velocity, roll/pitch from the accelerometer (kHoldRestart)
+//   6. non-finite / speed > max_speed_mps -> status INVALID, re-initialised (kResetDiverged)
+//   7. conversion of the estimate from frame E (base axes, IMU origin) to the base
 //      origin, stamped with the SAMPLE stamp, handed to the output sink
 //      (publication) and then to the record sink (logging).
 
@@ -102,6 +107,8 @@ struct EstimatorWorkerConfig {
   double max_input_age_s = 0.1;   // older bundles (since reception) are dropped; <= 0 disables
   double min_dt_s = 1e-6;         // smaller dt is not processed
   double max_speed_mps = 20.0;    // divergence check on the base speed
+  bool hold_without_stance = true;  // no leg in stance: zero velocity, hold position (kNoStanceHold)
+  double hold_restart_s = 0.5;      // stance after a hold this long: restart at the held pose (< 0: never)
   int warmup_samples = 1;         // status INITIALIZING for the first samples after (re)initialisation
   ThreadSettings thread;
 };
@@ -159,6 +166,10 @@ class EstimatorWorker {
   std::int64_t last_stamp_ns_ = 0;
   std::uint64_t last_acq_seq_ = 0;
   int samples_since_init_ = 0;
+  bool holding_ = false;                                 // previous sample was held
+  Eigen::Vector3d last_p_wE_ = Eigen::Vector3d::Zero();  // position of the previous estimate (frame E)
+  Eigen::Matrix3d last_R_wE_ = Eigen::Matrix3d::Identity();  // attitude of the previous estimate
+  std::int64_t hold_start_ns_ = 0;                       // stamp of the first held sample
 
   std::atomic<bool> reset_requested_{false};
   std::atomic<std::uint64_t> consumed_{0};

@@ -2,6 +2,7 @@
 
 #include <Eigen/Geometry>
 
+#include <cmath>
 #include <stdexcept>
 
 namespace seb {
@@ -24,6 +25,12 @@ Eigen::Matrix3d gravityAlignedAttitude(const Eigen::Vector3d& acc_base) {
   // At rest the accelerometer measures the specific force, +g along world z,
   // expressed in base axes: f_b = R_wb^T * (0, 0, g). Find R_wb with R_wb f_b ~ z.
   return Eigen::Quaterniond::FromTwoVectors(acc_base / n, Eigen::Vector3d::UnitZ()).toRotationMatrix();
+}
+
+Eigen::Matrix3d restartAttitude(const Eigen::Matrix3d& R_prev, const Eigen::Vector3d& acc_base) {
+  const Eigen::Matrix3d R_tilt = gravityAlignedAttitude(acc_base);
+  auto heading = [](const Eigen::Matrix3d& R) { return std::atan2(R(1, 0), R(0, 0)); };
+  return Eigen::AngleAxisd(heading(R_prev) - heading(R_tilt), Eigen::Vector3d::UnitZ()).toRotationMatrix() * R_tilt;
 }
 
 }  // namespace seb

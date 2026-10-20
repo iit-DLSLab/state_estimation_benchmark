@@ -1,6 +1,7 @@
 #include "seb_online/ros_output.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <sstream>
 
 namespace seb {
@@ -63,6 +64,37 @@ void toMsg(const StateEstimate& s, const std::string& world_frame, const std::st
       s.publish_ros_ns > 0 ? static_cast<double>(s.publish_ros_ns - s.stamp_ns) * 1e-9 : 0.0;
   msg.estimator_queue_depth = static_cast<std::uint32_t>(s.estimator_queue_depth);
   msg.dropped_samples_total = s.dropped_total;
+}
+
+void toBaseState(const StateEstimate& s, const std::string& world_frame, const std::string& robot_name,
+                 dls2_interface::msg::BaseState& msg) {
+  msg.frame_id = world_frame;
+  msg.sequence_id = static_cast<std::uint32_t>(s.sample_id);
+  msg.timestamp = static_cast<double>(s.stamp_ns);
+  msg.robot_name = robot_name;
+  msg.pose.position = {s.p_wb.x(), s.p_wb.y(), s.p_wb.z()};
+  msg.pose.orientation = {s.q_wb.x(), s.q_wb.y(), s.q_wb.z(), s.q_wb.w()};
+  msg.velocity.linear = {s.v_wb.x(), s.v_wb.y(), s.v_wb.z()};
+  msg.velocity.angular = {s.omega_b.x(), s.omega_b.y(), s.omega_b.z()};
+  msg.acceleration.linear = {0.0, 0.0, 0.0};
+  msg.acceleration.angular = {0.0, 0.0, 0.0};
+  msg.stance_status.assign(s.contact.begin(), s.contact.end());
+}
+
+void toTiming(const StateEstimate& s, seb_interfaces::msg::EstimatorTiming& msg) {
+  auto ms = [](std::int64_t start_ns, std::int64_t end_ns) {
+    return start_ns > 0 && end_ns >= start_ns ? static_cast<double>(end_ns - start_ns) * 1e-6
+                                              : std::numeric_limits<double>::quiet_NaN();
+  };
+  msg.header.stamp = rclcpp::Time(s.publish_ros_ns, RCL_ROS_TIME);
+  msg.estimator = s.estimator;
+  msg.sample_id = s.sample_id;
+  msg.lowstate_tick = s.tick;
+  msg.status = static_cast<std::uint8_t>(s.status);
+  msg.estimator_ms = ms(s.est_start_steady_ns, s.est_end_steady_ns);
+  msg.kinematics_ms = ms(s.kin_start_steady_ns, s.kin_end_steady_ns);
+  msg.contact_ms = ms(s.contact_start_steady_ns, s.contact_end_steady_ns);
+  msg.receive_to_publish_ms = ms(s.receive_steady_ns, s.publish_steady_ns);
 }
 
 void toOdometry(const StateEstimate& s, const std::string& world_frame, const std::string& base_frame,

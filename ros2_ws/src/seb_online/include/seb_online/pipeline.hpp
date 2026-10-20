@@ -48,7 +48,7 @@ struct PipelineCounters {
   std::uint64_t received = 0;
   std::uint64_t dispatched = 0;
   std::uint64_t processed = 0;
-  std::array<std::uint64_t, 18> events{};  // indexed by EventType
+  std::array<std::uint64_t, 20> events{};  // indexed by EventType
   std::uint64_t droppedBeforeEstimator() const;
 };
 

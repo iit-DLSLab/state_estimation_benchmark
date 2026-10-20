@@ -312,3 +312,121 @@ TEST(EstimatorWorker, EarlierStampRestartsInsteadOfBlocking) {
   for (const auto& e : events) jumps += e.type == EventType::kResetTimeJump;
   EXPECT_EQ(jumps, 1);
 }
+
+// A sample with no leg in stance is published with zero velocity and the position
+// of the previous estimate; the estimator state is forced the same way
+// (holdStationary) and one event marks the episode.
+TEST(EstimatorWorker, NoStanceForcesZeroVelocityAndHoldsPosition) {
+  BoundedQueue<SynchronizedMeasurement> queue(8);
+  auto est = std::make_unique<RecordingEstimator>();
+  RecordingEstimator* rec = est.get();
+  std::vector<PipelineEvent> events;
+  std::vector<StateEstimate> outputs;
+  EstimatorWorkerConfig cfg;
+  cfg.max_input_age_s = 0.0;
+  EstimatorWorker worker(cfg, RobotMapping::go2Defaults(), std::move(est), queue,
+                         [&](StateEstimate& s) { outputs.push_back(s); }, nullptr,
+                         [&](const PipelineEvent& e) { events.push_back(e); }, nullptr, nullptr);
+  const bool stance[] = {true, true, false, false, false, true, false, true};
+  for (int i = 0; i < 8; ++i) {
+    // Estimator output that keeps moving: the hold must override it.
+    rec->next_output.p_wE = Eigen::Vector3d(0.1 * (i + 1), 0.0, 0.3);
+    rec->next_output.v_wE = Eigen::Vector3d(0.5, 0.2, -0.1);
+    SynchronizedMeasurement m;
+    m.sensor = makeSample(i + 1, (100 + 2 * i) * kMs);
+    m.kinematics = makeKinematics(*m.sensor);
+    m.contacts = makeContact(*m.sensor);
+    m.contacts.stance.fill(false);
+    m.contacts.stance[i % kNumLegs] = stance[i];  // one leg is enough to count as stance
+    worker.processOne(m, 0);
+  }
+  ASSERT_EQ(outputs.size(), 8u);
+  // Holds: samples 3, 4, 5 at the position of sample 2, sample 7 at that of sample 6.
+  ASSERT_EQ(rec->held_positions.size(), 4u);
+  for (int i : {2, 3, 4, 6}) {
+    EXPECT_TRUE(outputs[i].v_wb.isZero()) << i;
+    EXPECT_TRUE(outputs[i].v_b.isZero()) << i;
+  }
+  const Eigen::Vector3d r = -RobotMapping::go2Defaults().p_base_imu;  // identity attitude
+  EXPECT_TRUE(outputs[2].p_wb.isApprox(Eigen::Vector3d(0.2, 0.0, 0.3) + r));
+  EXPECT_TRUE(outputs[4].p_wb.isApprox(outputs[2].p_wb));
+  EXPECT_TRUE(outputs[6].p_wb.isApprox(Eigen::Vector3d(0.6, 0.0, 0.3) + r));
+  EXPECT_TRUE(outputs[5].v_wb.isApprox(Eigen::Vector3d(0.5, 0.2, -0.1))) << "estimator output again with stance";
+  int holds = 0;
+  for (const auto& e : events) holds += e.type == EventType::kNoStanceHold;
+  EXPECT_EQ(holds, 2) << "one event per no-stance episode";
+}
+
+// Disabled, or an estimator without holdStationary (MUSE): output passes through unchanged.
+TEST(EstimatorWorker, NoStanceHoldDisabledOrUnsupported) {
+  for (const bool enabled : {false, true}) {
+    BoundedQueue<SynchronizedMeasurement> queue(8);
+    EstimatorWorkerConfig cfg;
+    cfg.max_input_age_s = 0.0;
+    cfg.hold_without_stance = enabled;
+    auto est = std::make_unique<RecordingEstimator>();
+    est->supports_hold = !enabled;  // enabled: estimator that does not implement the hold
+    est->next_output.v_wE = Eigen::Vector3d(0.5, 0.0, 0.0);
+    RecordingEstimator* rec = est.get();
+    std::vector<StateEstimate> outputs;
+    std::vector<PipelineEvent> events;
+    EstimatorWorker worker(cfg, RobotMapping::go2Defaults(), std::move(est), queue,
+                           [&](StateEstimate& s) { outputs.push_back(s); }, nullptr,
+                           [&](const PipelineEvent& e) { events.push_back(e); }, nullptr, nullptr);
+    SynchronizedMeasurement m;
+    m.sensor = makeSample(1, 100 * kMs);
+    m.kinematics = makeKinematics(*m.sensor);
+    m.contacts = makeContact(*m.sensor);
+    m.contacts.stance.fill(false);
+    worker.processOne(m, 0);
+    EXPECT_TRUE(rec->held_positions.empty()) << enabled;
+    EXPECT_DOUBLE_EQ(outputs.at(0).v_wb.x(), 0.5) << enabled;
+    for (const auto& e : events) EXPECT_NE(e.type, EventType::kNoStanceHold) << enabled;
+  }
+}
+
+// Stance after a hold: a short hold just ends, a hold >= hold_restart_s restarts the
+// estimator at the held position (next step is a first step) with roll/pitch from
+// the accelerometer and the heading of the last estimate.
+TEST(EstimatorWorker, LongHoldRestartsEstimatorAtHeldPose) {
+  BoundedQueue<SynchronizedMeasurement> queue(8);
+  auto est = std::make_unique<RecordingEstimator>();
+  RecordingEstimator* rec = est.get();
+  std::vector<PipelineEvent> events;
+  EstimatorWorkerConfig cfg;
+  cfg.max_input_age_s = 0.0;
+  cfg.max_gap_s = 1.0;
+  cfg.hold_restart_s = 0.5;
+  EstimatorWorker worker(cfg, RobotMapping::go2Defaults(), std::move(est), queue, nullptr, nullptr,
+                         [&](const PipelineEvent& e) { events.push_back(e); }, nullptr, nullptr);
+  const double yaw = 0.7;
+  rec->next_output.R_wE = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix();
+  rec->next_output.p_wE = Eigen::Vector3d(1.0, 2.0, 0.3);
+  // stance: sample 1; no stance: samples 2-3 (0.2 s); stance: 4; no stance: 5-9 (0.8 s); stance: 10
+  const std::int64_t stamps_ms[] = {100, 200, 300, 400, 500, 700, 900, 1100, 1300, 1400};
+  const bool stance[] = {true, false, false, true, false, false, false, false, false, true};
+  const Eigen::Vector3d acc(0.8, -0.5, 9.3);  // tilted robot at rest
+  for (int i = 0; i < 10; ++i) {
+    SynchronizedMeasurement m;
+    auto sample = std::make_shared<SensorSample>(*makeSample(i + 1, stamps_ms[i] * kMs));
+    sample->acc = acc;
+    m.sensor = sample;
+    m.kinematics = makeKinematics(*m.sensor);
+    m.contacts = makeContact(*m.sensor);
+    m.contacts.stance.fill(stance[i]);
+    worker.processOne(m, 0);
+  }
+  ASSERT_EQ(rec->restarts.size(), 1u) << "only the hold of 0.8 s restarts";
+  EXPECT_TRUE(rec->restarts[0].second.isApprox(Eigen::Vector3d(1.0, 2.0, 0.3)));
+  const Eigen::Matrix3d& R = rec->restarts[0].first;
+  EXPECT_NEAR(std::atan2(R(1, 0), R(0, 0)), yaw, 1e-9) << "heading kept";
+  EXPECT_TRUE((R.transpose() * Eigen::Vector3d::UnitZ()).isApprox(acc.normalized(), 1e-9))
+      << "roll/pitch from the accelerometer";
+  const auto calls = rec->snapshot();
+  ASSERT_EQ(calls.size(), 10u);
+  EXPECT_TRUE(calls[9].first) << "restart: first step after it";
+  EXPECT_FALSE(calls[3].first) << "short hold: no restart";
+  int restarts = 0;
+  for (const auto& e : events) restarts += e.type == EventType::kHoldRestart;
+  EXPECT_EQ(restarts, 1);
+}

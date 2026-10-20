@@ -36,6 +36,7 @@ find_package(ament_index_cpp REQUIRED)
 find_package(rosbag2_cpp REQUIRED)
 find_package(seb_interfaces REQUIRED)
 find_package(unitree_go REQUIRED)
+find_package(dls2_interface REQUIRED)
 
 # ---------------------------------------------------------------------------
 # Estimator libraries of the offline benchmark (offline executables not built)
@@ -87,7 +88,7 @@ target_compile_options(seb_online_core PRIVATE -Wall -Wextra)
 # ---------------------------------------------------------------------------
 set(SEB_ROS_DEPS
   rclcpp rclcpp_lifecycle lifecycle_msgs std_srvs diagnostic_msgs nav_msgs geometry_msgs
-  ament_index_cpp seb_interfaces unitree_go)
+  ament_index_cpp seb_interfaces unitree_go dls2_interface)
 
 add_library(seb_online_ros STATIC
   src/node/ros_parameters.cpp
@@ -115,6 +116,8 @@ install(PROGRAMS
   scripts/inspect_lowstate_bag.py
   scripts/profile_window_sizes.sh
   scripts/compare_offline_regression.py
+  scripts/resource_monitor.py
+  scripts/benchmark_summary.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

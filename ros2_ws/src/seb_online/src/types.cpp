@@ -22,6 +22,8 @@ const char* toString(EventType type) {
     case EventType::kResetTimeJump: return "reset_time_jump";
     case EventType::kDtTooSmall: return "dt_too_small";
     case EventType::kEstimatorException: return "estimator_exception";
+    case EventType::kNoStanceHold: return "no_stance_hold";
+    case EventType::kHoldRestart: return "hold_restart";
   }
   return "unknown";
 }
