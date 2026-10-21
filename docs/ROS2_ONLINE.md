@@ -435,9 +435,9 @@ executables are not part of the ROS build.
 Live robot (monitoring only), one estimator per run:
 
 ```bash
-ros2 launch seb_online go2_online.launch.py estimator:=muse
-ros2 launch seb_online go2_online.launch.py estimator:=iekf
-ros2 launch seb_online go2_online.launch.py estimator:=invariant_smoother window_size:=3
+ros2 launch seb_online go2_online.launch.py estimator:=museok profiling:=true
+ros2 launch seb_online go2_online.launch.py estimator:=iekf profiling:=true 
+ros2 launch seb_online go2_online.launch.py estimator:=invariant_smoother window_size:=n profiling:=true 
 ```
 
 Useful arguments: `lowstate_topic:=/lowstate`, `config:=<yaml>`, `run_name:=...`,

@@ -118,6 +118,7 @@ install(PROGRAMS
   scripts/compare_offline_regression.py
   scripts/resource_monitor.py
   scripts/benchmark_summary.py
+  scripts/export_bags_csv.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -17,6 +17,7 @@
 #include <Eigen/Core>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 
@@ -143,6 +144,10 @@ enum class EventType : std::uint8_t {
   kNoStanceHold = 18,       // no leg in stance: velocity forced to zero, position held (episode start)
   kHoldRestart = 19,        // stance again after a long hold: estimator restarted at the held pose
 };
+// Size of the per-type event counters: keep equal to the last EventType + 1.
+constexpr std::size_t kNumEventTypes = 20;
+static_assert(static_cast<std::size_t>(EventType::kHoldRestart) + 1 == kNumEventTypes,
+              "kNumEventTypes must cover every EventType");
 
 const char* toString(EventType type);
 

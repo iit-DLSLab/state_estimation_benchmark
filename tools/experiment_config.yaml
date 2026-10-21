@@ -1,0 +1,60 @@
+# Real-robot closed-loop trials (Unitree Go2, Quadruped-PyMPC, seb_online), recorded 2026-10-21.
+# Paths are relative to this file. Each trial uses either
+#   csv: <folder written by seb_online/scripts/export_bags_csv.py>   (no ROS needed, faster)
+#   bag: <rosbag2 directory>                                           (needs the sourced ros2_ws)
+# A csv folder also contains the seb_online run log (samples.csv, events.csv,
+# run_config.yaml); with bag: set run_log: <~/.ros/seb_online/<run>> to use it.
+#
+# Optional per trial:
+#   start_s / end_s   analysis window on the bag time axis [s since the first message]
+#   warmup_s          estimator output ignored after its first sample [s] (INITIALIZING
+#                     samples are always excluded)
+#   phases            manual segments replacing the automatic ones:
+#                     [{name: stand_initial, start: 20.0, end: 26.0}, {name: trot_straight, ...}]
+#   topics            role -> topic overrides (roles: timing, resources, consumption, mpc_cost,
+#                     state, lowstate, diagnostics, mpc_timing)
+#   notes             free text, copied nowhere but kept with the data
+
+output: ../results/analysis
+
+defaults:
+  warmup_s: 0.0
+
+# Shared analysis parameters (defaults in tools/analyze_closed_loop.py).
+analysis:
+  contact_threshold: 15.0       # LowState.foot_force units; = estimators' contact threshold
+  margin_s: 2.0                 # trimmed at both ends of every detected bout
+  band_hz: [0.5, 30.0]          # common gyro band, chosen from the spectra (Fig. S1)
+  yaw_straight: 0.2             # rad/s
+  yaw_turn: 0.3                 # rad/s
+  timeseries_window_s: 4.0
+
+# CPU sampling of resource_monitor.py (documentation; values are read from the data).
+cpu:
+  source: /benchmark/resources
+  period_s: 0.5
+  convention: "percent of one core; can exceed 100 on multicore CPUs"
+  process: online_estimator_node (whole estimation pipeline)
+
+experiments:
+  - {estimator: muse, trial: 1, csv: ../ros2_ws/rosbags_csv/bench_muse_01}
+  - {estimator: muse, trial: 2, csv: ../ros2_ws/rosbags_csv/bench_muse_02}
+  - {estimator: muse, trial: 3, csv: ../ros2_ws/rosbags_csv/bench_muse_03}
+
+  - {estimator: iekf, trial: 1, csv: ../ros2_ws/rosbags_csv/bench_iekf_01}
+  - {estimator: iekf, trial: 2, csv: ../ros2_ws/rosbags_csv/bench_iekf_02}
+  - {estimator: iekf, trial: 3, csv: ../ros2_ws/rosbags_csv/bench_iekf_03}
+
+  # ws = smoother.window_size: ws IMU intervals, ws + 1 state frames (≈ ws x 2 ms at 500 Hz)
+  - {estimator: smoother, ws: 1, trial: 1, csv: ../ros2_ws/rosbags_csv/bench_smoother_01}
+  - {estimator: smoother, ws: 1, trial: 2, csv: ../ros2_ws/rosbags_csv/bench_smmother_ws1_02}
+  - {estimator: smoother, ws: 1, trial: 3, csv: ../ros2_ws/rosbags_csv/bench_smmother_ws1_03}
+
+  - {estimator: smoother, ws: 3, trial: 1, csv: ../ros2_ws/rosbags_csv/bench_smoother_03,
+     notes: "controller loop ~270 Hz for the whole run (others ~440 Hz): exclude from controller-side comparisons or flag"}
+  - {estimator: smoother, ws: 3, trial: 2, csv: ../ros2_ws/rosbags_csv/bench_smmother_ws3_02}
+  - {estimator: smoother, ws: 3, trial: 3, csv: ../ros2_ws/rosbags_csv/bench_smmother_ws3_03}
+
+  - {estimator: smoother, ws: 6, trial: 1, csv: ../ros2_ws/rosbags_csv/bench_smoother_06}
+  - {estimator: smoother, ws: 6, trial: 2, csv: ../ros2_ws/rosbags_csv/bench_smmother_ws6_02}
+  - {estimator: smoother, ws: 6, trial: 3, csv: ../ros2_ws/rosbags_csv/bench_smmother_ws6_03}
